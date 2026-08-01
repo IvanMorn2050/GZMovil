@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -18,128 +19,200 @@ import { useAuth } from '../hooks/useAuth';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 
+const TITULO  = '#0E3A44';
+const BUTTON  = '#1AA6A6';
+const DIVIDER = '#D9D9D9';
+const TEXT    = '#6B7C85';
+
 export default function LoginScreen() {
   const navigation = useNavigation<Nav>();
   const { login } = useAuth();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail]             = useState('');
+  const [password, setPassword]       = useState('');
   const [verPassword, setVerPassword] = useState(false);
+  const [enviando, setEnviando]       = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       Alert.alert('Campos requeridos', 'Por favor ingresa tu correo y contraseña.');
       return;
     }
-    const ok = login(email.trim().toLowerCase(), password);
-    if (!ok) {
-      Alert.alert('Credenciales incorrectas', 'Correo o contraseña inválidos.');
-    }
+    setEnviando(true);
+    const result = await login(email.trim().toLowerCase(), password);
+    setEnviando(false);
+    if (!result.ok) Alert.alert('Error al iniciar sesión', result.error ?? 'Credenciales incorrectas');
   };
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={s.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.header}>
-        <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
-        <Text style={styles.appName}>GuardianZero</Text>
-        <Text style={styles.appSub}>Sistema de Reportes</Text>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
-        <Text style={styles.titulo}>Iniciar Sesión</Text>
-
-        <Text style={styles.label}>Correo electrónico</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="correo@ejemplo.com"
-          placeholderTextColor="#aab4bc"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-        />
-
-        <Text style={styles.label}>Contraseña</Text>
-        <View style={styles.inputRow}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder="••••••••"
-            placeholderTextColor="#aab4bc"
-            secureTextEntry={!verPassword}
-            value={password}
-            onChangeText={setPassword}
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Branding centrado */}
+        <View style={s.branding}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={s.logo}
+            resizeMode="contain"
           />
-          <TouchableOpacity style={styles.eyeBtn} onPress={() => setVerPassword(!verPassword)}>
-            <Text style={styles.eyeText}>{verPassword ? '🙈' : '👁️'}</Text>
+          <Text style={s.appName}>GUARDIAN ZERO</Text>
+          <Text style={s.appSub}>Sistema de Reportes de Emergencia</Text>
+        </View>
+
+        {/* Tarjeta del formulario */}
+        <View style={s.formCard}>
+          <Text style={s.formTitulo}>Iniciar Sesión</Text>
+          <Text style={s.formSub}>Ingresa tus credenciales para continuar</Text>
+
+          {/* Email */}
+          <View style={s.campo}>
+            <Text style={s.campoLabel}>Correo electrónico</Text>
+            <TextInput
+              style={s.input}
+              placeholder="correo@ejemplo.com"
+              placeholderTextColor="#B0B8BC"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+            />
+          </View>
+
+          {/* Contraseña */}
+          <View style={s.campo}>
+            <Text style={s.campoLabel}>Contraseña</Text>
+            <View style={s.inputRow}>
+              <TextInput
+                style={[s.input, s.inputConPadding]}
+                placeholder="••••••••"
+                placeholderTextColor="#B0B8BC"
+                secureTextEntry={!verPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity
+                style={s.eyeBtn}
+                onPress={() => setVerPassword(!verPassword)}
+                activeOpacity={0.7}
+              >
+                <Image
+                  source={require('../../assets/ocultar_contra.png')}
+                  style={[s.eyeIcon, verPassword && s.eyeIconActivo]}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Botón */}
+          <TouchableOpacity style={s.btnPrimary} onPress={handleLogin} activeOpacity={0.85} disabled={enviando}>
+            {enviando
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={s.btnText}>Iniciar Sesión</Text>}
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.btnPrimary} onPress={handleLogin}>
-          <Text style={styles.btnPrimaryText}>Iniciar Sesión</Text>
-        </TouchableOpacity>
-
-        <View style={styles.registerRow}>
-          <Text style={styles.registerText}>¿No tienes cuenta? </Text>
+        {/* Link a registro */}
+        <View style={s.linkRow}>
+          <Text style={s.linkText}>¿No tienes cuenta? </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-            <Text style={styles.registerLink}>Regístrate</Text>
+            <Text style={s.link}>Regístrate aquí</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.hint}>Demo: admin@guardianzero.com / 1234</Text>
+        <Text style={s.hint}>Demo: admin@guardianzero.com / 1234</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const PRIMARY = '#3ab5c6';
-const DARK = '#0d4f5c';
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#fff' },
-  header: {
-    backgroundColor: DARK,
-    alignItems: 'center',
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F5F7F8' },
+  scroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
     paddingTop: 60,
-    paddingBottom: 32,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    paddingBottom: 40,
   },
-  logo: { width: 100, height: 100, marginBottom: 8 },
-  appName: { color: '#fff', fontSize: 26, fontWeight: '800', letterSpacing: 1 },
-  appSub: { color: '#a8d8e0', fontSize: 13, marginTop: 2 },
-  form: { padding: 28, paddingTop: 32 },
-  titulo: { fontSize: 22, fontWeight: '700', color: DARK, marginBottom: 24 },
-  label: { fontSize: 13, fontWeight: '600', color: '#4a6470', marginBottom: 6 },
+
+  /* Branding */
+  branding: { alignItems: 'center', marginBottom: 32 },
+  logo: { width: 90, height: 90, marginBottom: 14 },
+  appName: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: TITULO,
+    letterSpacing: 1.5,
+    marginBottom: 5,
+  },
+  appSub: { fontSize: 12, color: TEXT, textAlign: 'center' },
+
+  /* Formulario */
+  formCard: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    marginBottom: 20,
+  },
+  formTitulo: { fontSize: 20, fontWeight: '800', color: TITULO, textAlign: 'center', marginBottom: 4 },
+  formSub: { fontSize: 12, color: TEXT, textAlign: 'center', marginBottom: 22 },
+
+  /* Campos */
+  campo: { marginBottom: 16 },
+  campoLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: TITULO,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 7,
+  },
+  inputRow: { position: 'relative' },
   input: {
-    backgroundColor: '#f0f4f5',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    fontSize: 15,
-    color: '#1a2730',
-    marginBottom: 16,
-  },
-  inputRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  eyeBtn: { position: 'absolute', right: 12, top: 12, padding: 4 },
-  eyeText: { fontSize: 18 },
-  btnPrimary: {
-    backgroundColor: PRIMARY,
+    backgroundColor: '#F8FAFB',
+    borderWidth: 1.5,
+    borderColor: DIVIDER,
     borderRadius: 12,
-    paddingVertical: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: TITULO,
+  },
+  inputConPadding: { paddingRight: 50 },
+  eyeBtn: { position: 'absolute', right: 14, top: 12, padding: 4 },
+  eyeIcon: { width: 24, height: 24, opacity: 0.3 },
+  eyeIconActivo: { opacity: 1, tintColor: BUTTON },
+
+  /* Botón */
+  btnPrimary: {
+    backgroundColor: BUTTON,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 8,
-    shadowColor: PRIMARY,
+    marginTop: 6,
+    shadowColor: BUTTON,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 5,
   },
-  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  registerRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
-  registerText: { color: '#6b7c85', fontSize: 14 },
-  registerLink: { color: PRIMARY, fontSize: 14, fontWeight: '700' },
-  hint: { textAlign: 'center', color: '#aab4bc', fontSize: 12, marginTop: 20 },
+  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  /* Links */
+  linkRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 14 },
+  linkText: { color: TEXT, fontSize: 14 },
+  link: { color: BUTTON, fontSize: 14, fontWeight: '700' },
+  hint: { textAlign: 'center', color: '#B0B8BC', fontSize: 12 },
 });

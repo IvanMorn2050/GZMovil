@@ -1,185 +1,575 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../hooks/useAuth';
-import { getReportes } from '../services/reporteService';
+import { getPerfilApi, updatePerfilApi, uploadFotoApi, postulacionApi } from '../services/authService';
+
+const TITULO  = '#0E3A44';
+const BUTTON  = '#1AA6A6';
+const HEADER  = '#B6C3C9';
+const DIVIDER = '#D9D9D9';
+const TEXT    = '#6B7C85';
 
 const ROL_INFO: Record<string, { label: string; emoji: string; color: string }> = {
-  ciudadano:   { label: 'Ciudadano',    emoji: '🏘️', color: '#3498db' },
-  voluntario:  { label: 'Voluntario',   emoji: '🤝', color: '#27ae60' },
-  coordinador: { label: 'Coordinador',  emoji: '⭐', color: '#f39c12' },
+  ciudadano:   { label: 'Ciudadano',   emoji: '🏘️', color: '#3498DB' },
+  voluntario:  { label: 'Voluntario',  emoji: '🤝', color: '#27AE60' },
+  coordinador: { label: 'Coordinador', emoji: '⭐', color: '#F39C12' },
+};
+
+const PERMISOS: Record<string, string[]> = {
+  voluntario:  ['Ver y atender reportes de desastres activos', 'Registrarte como voluntario en emergencias', 'Crear reportes de nuevas ocurrencias'],
+  coordinador: ['Coordinar equipos de respuesta', 'Atender y gestionar reportes activos', 'Crear reportes de nuevas ocurrencias'],
+  ciudadano:   ['Reportar desastres naturales en tu zona', 'Ver el estado de tus reportes enviados', 'Consultar el registro de ocurrencias'],
+};
+
+interface Postulacion {
+  id: number;
+  rol_solicitado: string;
+  estado: string;
+  motivo: string;
+}
+
+const ESTADO_POST_COLOR: Record<string, string> = {
+  Pendiente: '#F39C12',
+  Aprobada:  '#27AE60',
+  Rechazada: '#E74C3C',
 };
 
 export default function ProfileScreen() {
-  const { usuario, logout } = useAuth();
-  const todos = getReportes();
-  const misReportes = todos.filter((r) => r.usuarioId === usuario?.id);
-  const reportesAtendidos = todos.filter((r) => r.voluntariosIds.includes(usuario?.id ?? ''));
-  const resueltos = misReportes.filter((r) => r.estado === 'Resuelto').length;
+  const { usuario, logout, actualizarUsuario } = useAuth();
 
-  const rolInfo = ROL_INFO[usuario?.rol ?? 'ciudadano'];
+  // ── Estado del perfil ─────────────────────────────────────────────
+  const [stats, setStats]         = useState({ total_reportes: 0, reportes_resueltos: 0, capacitaciones_completadas: 0 });
+  const [fotoUrl, setFotoUrl]     = useState<string | null>(usuario?.fotoUrl ?? null);
+  const [telefono, setTelefono]   = useState(usuario?.telefono ?? '');
+  const [postulacion, setPost]    = useState<Postulacion | null>(null);
+  const [cargando, setCargando]   = useState(true);
+
+  // ── Modales ───────────────────────────────────────────────────────
+  const [editVisible, setEditVisible] = useState(false);
+  const [postVisible, setPostVisible] = useState(false);
+
+  // ── Formulario edición ────────────────────────────────────────────
+  const [editNombre, setEditNombre]   = useState(usuario?.nombre ?? '');
+  const [editTelefono, setEditTel]    = useState(usuario?.telefono ?? '');
+  const [savingEdit, setSavingEdit]   = useState(false);
+
+  // ── Formulario postulación ────────────────────────────────────────
+  const [postRol, setPostRol]       = useState<'Voluntario' | 'Especialista'>('Voluntario');
+  const [postMotivo, setPostMotivo] = useState('');
+  const [sendingPost, setSendingPost] = useState(false);
+
+  // ── Subiendo foto ─────────────────────────────────────────────────
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+
+  useEffect(() => {
+    getPerfilApi()
+      .then((data) => {
+        setStats({
+          total_reportes:             data.total_reportes             ?? 0,
+          reportes_resueltos:         data.reportes_resueltos         ?? 0,
+          capacitaciones_completadas: data.capacitaciones_completadas ?? 0,
+        });
+        if (data.foto_url) setFotoUrl(data.foto_url);
+        if (data.telefono) {
+          setTelefono(data.telefono);
+          setEditTel(data.telefono);
+        }
+        if (data.postulacion) setPost(data.postulacion);
+      })
+      .catch(() => {})
+      .finally(() => setCargando(false));
+  }, []);
+
+  const rolInfo      = ROL_INFO[usuario?.rol ?? 'ciudadano'];
   const esVoluntario = usuario?.rol === 'voluntario' || usuario?.rol === 'coordinador';
+  const permisos     = PERMISOS[usuario?.rol ?? 'ciudadano'];
+
+  // ── Handlers ──────────────────────────────────────────────────────
 
   const handleLogout = () => {
     Alert.alert('Cerrar sesión', '¿Seguro que deseas salir?', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sí, salir', style: 'destructive', onPress: logout },
+      { text: 'Sí, salir', style: 'destructive', onPress: () => logout() },
     ]);
   };
 
+  const handleGuardarEdit = async () => {
+    if (!editNombre.trim()) {
+      Alert.alert('Campo requerido', 'El nombre no puede estar vacío.');
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await updatePerfilApi(editNombre.trim(), editTelefono.trim() || undefined);
+      actualizarUsuario({ nombre: editNombre.trim(), telefono: editTelefono.trim() || undefined });
+      setTelefono(editTelefono.trim());
+      setEditVisible(false);
+      Alert.alert('¡Listo!', 'Tu perfil fue actualizado correctamente.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'No se pudo actualizar el perfil.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handlePickFoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería para cambiar la foto.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.75,
+    });
+    if (result.canceled) return;
+
+    setSubiendoFoto(true);
+    try {
+      const { foto_url } = await uploadFotoApi(result.assets[0].uri);
+      setFotoUrl(foto_url);
+      actualizarUsuario({ fotoUrl: foto_url });
+      Alert.alert('¡Listo!', 'Tu foto de perfil fue actualizada.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'No se pudo subir la foto.');
+    } finally {
+      setSubiendoFoto(false);
+    }
+  };
+
+  const handlePostulacion = async () => {
+    if (!postMotivo.trim()) {
+      Alert.alert('Campo requerido', 'Por favor describe tu motivación.');
+      return;
+    }
+    setSendingPost(true);
+    try {
+      await postulacionApi(postRol, postMotivo.trim());
+      setPost({ id: 0, rol_solicitado: postRol, estado: 'Pendiente', motivo: postMotivo.trim() });
+      setPostVisible(false);
+      setPostMotivo('');
+      Alert.alert(
+        '¡Postulación enviada! 📋',
+        'Tu solicitud está pendiente de revisión por un administrador. Te notificaremos cuando sea procesada.',
+      );
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'No se pudo enviar la postulación.');
+    } finally {
+      setSendingPost(false);
+    }
+  };
+
+  // ── Render ────────────────────────────────────────────────────────
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+    <View style={s.root}>
+
       {/* Header */}
-      <View style={styles.header}>
-        <Image source={require('../../assets/logo.png')} style={styles.headerLogo} resizeMode="contain" />
-        <Text style={styles.headerTitle}>Mi Perfil</Text>
-      </View>
-
-      {/* Tarjeta de usuario */}
-      <View style={styles.avatarCard}>
-        <Image
-          source={require('../../assets/perfil_activo.jpeg')}
-          style={styles.avatar}
-          resizeMode="cover"
-        />
-        <Text style={styles.nombre}>{usuario?.nombre}</Text>
-        <Text style={styles.email}>{usuario?.email}</Text>
-        <View style={[styles.rolBadge, { backgroundColor: rolInfo.color + '20' }]}>
-          <Text style={styles.rolEmoji}>{rolInfo.emoji}</Text>
-          <Text style={[styles.rolText, { color: rolInfo.color }]}>{rolInfo.label}</Text>
+      <View style={s.header}>
+        <Image source={require('../../assets/logo.png')} style={s.logo} resizeMode="contain" />
+        <View>
+          <Text style={s.headerTitle}>GUARDIAN ZERO</Text>
+          <Text style={s.headerSub}>Mi Perfil</Text>
         </View>
       </View>
 
-      {/* Estadísticas */}
-      <Text style={styles.seccion}>Mis estadísticas</Text>
-      <View style={styles.statsCard}>
-        <View style={styles.statItem}>
-          <Text style={styles.statNum}>{misReportes.length}</Text>
-          <Text style={styles.statLabel}>Reportes{'\n'}creados</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statNum}>{resueltos}</Text>
-          <Text style={styles.statLabel}>Reportes{'\n'}resueltos</Text>
-        </View>
-        {esVoluntario && (
-          <>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statNum, { color: '#27ae60' }]}>{reportesAtendidos.length}</Text>
-              <Text style={styles.statLabel}>Emergencias{'\n'}atendidas</Text>
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* ── Tarjeta usuario ── */}
+        <View style={s.userCard}>
+          <TouchableOpacity onPress={handlePickFoto} disabled={subiendoFoto} activeOpacity={0.85}>
+            {subiendoFoto ? (
+              <View style={[s.avatar, s.avatarPlaceholder]}>
+                <ActivityIndicator color={BUTTON} />
+              </View>
+            ) : fotoUrl ? (
+              <Image source={{ uri: fotoUrl }} style={s.avatar} resizeMode="cover" />
+            ) : (
+              <Image source={require('../../assets/default-user.png')} style={s.avatar} resizeMode="cover" />
+            )}
+            <View style={s.cameraOverlay}>
+              <Image source={require('../../assets/camara.png')} style={s.cameraIcon} resizeMode="contain" />
             </View>
-          </>
-        )}
-      </View>
+          </TouchableOpacity>
 
-      {/* Rol info */}
-      <View style={styles.infoBox}>
-        <Text style={styles.infoTitulo}>{rolInfo.emoji}  ¿Qué puedo hacer?</Text>
-        {esVoluntario ? (
-          <>
-            <Text style={styles.infoItem}>• Ver y atender reportes de desastres</Text>
-            <Text style={styles.infoItem}>• Registrarte como voluntario activo</Text>
-            <Text style={styles.infoItem}>• Reportar nuevas ocurrencias</Text>
-          </>
-        ) : (
-          <>
-            <Text style={styles.infoItem}>• Reportar desastres naturales</Text>
-            <Text style={styles.infoItem}>• Ver el estado de tus reportes</Text>
-            <Text style={styles.infoItem}>• Consultar el registro de ocurrencias</Text>
-          </>
-        )}
-      </View>
+          <Text style={s.userName}>{usuario?.nombre}</Text>
+          <Text style={s.userEmail}>{usuario?.email}</Text>
+          {telefono ? <Text style={s.userTel}>📞 {telefono}</Text> : null}
 
-      <TouchableOpacity style={styles.btnLogout} onPress={handleLogout} activeOpacity={0.85}>
-        <Text style={styles.btnLogoutText}>Cerrar Sesión</Text>
-      </TouchableOpacity>
-    </ScrollView>
+          <View style={[s.rolBadge, { backgroundColor: rolInfo.color + '22' }]}>
+            <Text style={s.rolEmoji}>{rolInfo.emoji}</Text>
+            <Text style={[s.rolText, { color: rolInfo.color }]}>{rolInfo.label}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={s.editBtn}
+            onPress={() => {
+              setEditNombre(usuario?.nombre ?? '');
+              setEditTel(telefono);
+              setEditVisible(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={s.editBtnInner}>
+              <Image source={require('../../assets/lapiz.png')} style={s.editBtnIcon} resizeMode="contain" />
+              <Text style={s.editBtnText}>Editar Perfil</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Estadísticas ── */}
+        <View style={s.statsCard}>
+          {cargando ? (
+            <ActivityIndicator color={BUTTON} style={{ flex: 1, paddingVertical: 20 }} />
+          ) : (
+            <>
+              <View style={s.statItem}>
+                <Text style={s.statNum}>{stats.total_reportes}</Text>
+                <Text style={s.statLabel}>Reportes{'\n'}creados</Text>
+              </View>
+              <View style={s.statDivider} />
+              <View style={s.statItem}>
+                <Text style={s.statNum}>{stats.reportes_resueltos}</Text>
+                <Text style={s.statLabel}>Reportes{'\n'}resueltos</Text>
+              </View>
+              {esVoluntario && (
+                <>
+                  <View style={s.statDivider} />
+                  <View style={s.statItem}>
+                    <Text style={[s.statNum, { color: '#27AE60' }]}>{stats.capacitaciones_completadas}</Text>
+                    <Text style={s.statLabel}>Cursos{'\n'}completados</Text>
+                  </View>
+                </>
+              )}
+            </>
+          )}
+        </View>
+
+        {/* ── Postulación (solo ciudadanos) ── */}
+        {usuario?.rol === 'ciudadano' && (
+          <View style={s.card}>
+            <View style={s.sectionRow}>
+              <View style={s.sectionAccent} />
+              <Text style={s.sectionText}>🤝  Únete como Voluntario</Text>
+            </View>
+            {postulacion ? (
+              <View style={[s.postBadge, { backgroundColor: (ESTADO_POST_COLOR[postulacion.estado] ?? '#6B7C85') + '18' }]}>
+                <Text style={[s.postEstado, { color: ESTADO_POST_COLOR[postulacion.estado] ?? '#6B7C85' }]}>
+                  {postulacion.estado === 'Pendiente' && '⏳ '}
+                  {postulacion.estado === 'Aprobada'  && '✅ '}
+                  {postulacion.estado === 'Rechazada' && '❌ '}
+                  Postulación como {postulacion.rol_solicitado}: {postulacion.estado}
+                </Text>
+                <Text style={s.postMotivo}>"{postulacion.motivo}"</Text>
+                {postulacion.estado === 'Pendiente' && (
+                  <Text style={s.postInfo}>Tu solicitud está siendo revisada por un administrador.</Text>
+                )}
+              </View>
+            ) : (
+              <>
+                <Text style={s.postDesc}>
+                  Forma parte del equipo de respuesta a emergencias. Ayuda a tu comunidad como voluntario o especialista.
+                </Text>
+                <TouchableOpacity style={s.postBtn} onPress={() => setPostVisible(true)} activeOpacity={0.85}>
+                  <Text style={s.postBtnText}>Enviar Postulación</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        )}
+
+        {/* ── Permisos ── */}
+        <View style={s.card}>
+          <View style={s.sectionRow}>
+            <View style={s.sectionAccent} />
+            <Text style={s.sectionText}>{rolInfo.emoji}  ¿Qué puedo hacer?</Text>
+          </View>
+          {permisos.map((p, i) => (
+            <View key={i} style={[s.permisoFila, i < permisos.length - 1 && s.permisoDivider]}>
+              <View style={s.checkCircle}>
+                <Text style={s.checkIcon}>✓</Text>
+              </View>
+              <Text style={s.permisoTexto}>{p}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* ── Cerrar sesión ── */}
+        <TouchableOpacity style={s.logoutBtn} onPress={handleLogout} activeOpacity={0.85}>
+          <Text style={s.logoutText}>Cerrar Sesión</Text>
+        </TouchableOpacity>
+
+      </ScrollView>
+
+      {/* ── Modal editar perfil ── */}
+      <Modal visible={editVisible} animationType="slide" transparent onRequestClose={() => setEditVisible(false)}>
+        <KeyboardAvoidingView style={s.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={s.modalBox}>
+            <Text style={s.modalTitle}>Editar Perfil</Text>
+
+            <Text style={s.inputLabel}>Nombre completo</Text>
+            <TextInput
+              style={s.input}
+              value={editNombre}
+              onChangeText={setEditNombre}
+              placeholder="Tu nombre"
+              placeholderTextColor="#B0B8BC"
+              maxLength={80}
+            />
+
+            <Text style={s.inputLabel}>Teléfono (opcional)</Text>
+            <TextInput
+              style={s.input}
+              value={editTelefono}
+              onChangeText={setEditTel}
+              placeholder="10 dígitos"
+              placeholderTextColor="#B0B8BC"
+              keyboardType="phone-pad"
+              maxLength={20}
+            />
+
+            <View style={s.modalBtns}>
+              <TouchableOpacity style={s.modalCancelBtn} onPress={() => setEditVisible(false)} activeOpacity={0.8}>
+                <Text style={s.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.modalSaveBtn} onPress={handleGuardarEdit} disabled={savingEdit} activeOpacity={0.85}>
+                {savingEdit
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={s.modalSaveText}>Guardar</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Modal postulación ── */}
+      <Modal visible={postVisible} animationType="slide" transparent onRequestClose={() => setPostVisible(false)}>
+        <KeyboardAvoidingView style={s.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={s.modalBox}>
+            <Text style={s.modalTitle}>Postulación como Voluntario</Text>
+            <Text style={s.postModalDesc}>
+              Selecciona el rol al que deseas aplicar y cuéntanos por qué quieres ser parte del equipo.
+            </Text>
+
+            <Text style={s.inputLabel}>Rol solicitado</Text>
+            <View style={s.rolSelector}>
+              {(['Voluntario', 'Especialista'] as const).map((r) => (
+                <TouchableOpacity
+                  key={r}
+                  style={[s.rolOption, postRol === r && s.rolOptionActive]}
+                  onPress={() => setPostRol(r)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.rolOptionText, postRol === r && s.rolOptionTextActive]}>{r}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={s.inputLabel}>¿Por qué quieres ser voluntario?</Text>
+            <TextInput
+              style={[s.input, s.textArea]}
+              value={postMotivo}
+              onChangeText={setPostMotivo}
+              placeholder="Describe tu motivación, experiencia o habilidades relevantes..."
+              placeholderTextColor="#B0B8BC"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              maxLength={500}
+            />
+
+            <View style={s.modalBtns}>
+              <TouchableOpacity style={s.modalCancelBtn} onPress={() => { setPostVisible(false); setPostMotivo(''); }} activeOpacity={0.8}>
+                <Text style={s.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.modalSaveBtn} onPress={handlePostulacion} disabled={sendingPost} activeOpacity={0.85}>
+                {sendingPost
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={s.modalSaveText}>Enviar</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+    </View>
   );
 }
 
-const DARK = '#0d4f5c';
-const PRIMARY = '#3ab5c6';
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F5F7F8' },
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f0f4f5' },
-  content: { paddingBottom: 48 },
   header: {
-    backgroundColor: DARK,
+    backgroundColor: HEADER,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 52,
-    paddingBottom: 18,
+    paddingHorizontal: 18,
+    paddingTop: 50,
+    paddingBottom: 14,
   },
-  headerLogo: { width: 36, height: 36 },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  avatarCard: {
+  logo:        { width: 36, height: 36 },
+  headerTitle: { fontSize: 15, fontWeight: '800', color: TITULO, letterSpacing: 0.5 },
+  headerSub:   { fontSize: 11, color: TITULO, opacity: 0.65, marginTop: 1 },
+
+  scroll: { padding: 14, paddingBottom: 48 },
+
+  userCard: {
     backgroundColor: '#fff',
-    margin: 16,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
-    elevation: 2,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.07,
     shadowRadius: 4,
+    elevation: 2,
   },
-  avatar: { width: 88, height: 88, borderRadius: 44, marginBottom: 14 },
-  nombre: { fontSize: 20, fontWeight: '700', color: '#1a2730', marginBottom: 4 },
-  email: { fontSize: 13, color: '#8a9ba8', marginBottom: 12 },
-  rolBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5 },
-  rolEmoji: { fontSize: 16 },
-  rolText: { fontWeight: '700', fontSize: 13 },
-  seccion: { fontSize: 13, fontWeight: '700', color: '#8a9ba8', paddingHorizontal: 16, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  avatar: { width: 88, height: 88, borderRadius: 44, borderWidth: 3, borderColor: HEADER },
+  avatarPlaceholder: { backgroundColor: '#E8EDEF', alignItems: 'center', justifyContent: 'center' },
+  cameraOverlay: {
+    position: 'absolute', bottom: 0, right: 0,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: BUTTON,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#fff',
+  },
+  cameraIcon: { width: 14, height: 14 },
+  userName:   { fontSize: 20, fontWeight: '700', color: TITULO, marginTop: 10, marginBottom: 2 },
+  userEmail:  { fontSize: 13, color: TEXT, marginBottom: 4 },
+  userTel:    { fontSize: 13, color: TEXT, marginBottom: 8 },
+  rolBadge:   { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 14 },
+  rolEmoji:   { fontSize: 15 },
+  rolText:    { fontWeight: '700', fontSize: 13 },
+  editBtn:      { borderWidth: 1.5, borderColor: BUTTON, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 8 },
+  editBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  editBtnIcon:  { width: 16, height: 16 },
+  editBtnText:  { fontSize: 13, fontWeight: '600', color: BUTTON },
+
   statsCard: {
     backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 14,
+    paddingVertical: 20,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     justifyContent: 'space-around',
-    elevation: 2,
+    alignItems: 'center',
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.07,
     shadowRadius: 4,
+    elevation: 2,
   },
-  statItem: { alignItems: 'center', flex: 1 },
-  statNum: { fontSize: 26, fontWeight: '800', color: DARK },
-  statLabel: { fontSize: 11, color: '#8a9ba8', marginTop: 4, textAlign: 'center', lineHeight: 15 },
-  statDivider: { width: 1, backgroundColor: '#e8edf0' },
-  infoBox: {
+  statItem:    { alignItems: 'center', flex: 1 },
+  statNum:     { fontSize: 28, fontWeight: '800', color: BUTTON, marginBottom: 4 },
+  statLabel:   { fontSize: 11, color: TEXT, textAlign: 'center', lineHeight: 15 },
+  statDivider: { width: 1, backgroundColor: DIVIDER, alignSelf: 'stretch' },
+
+  card: {
     backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 16,
-    padding: 18,
-    elevation: 2,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.07,
     shadowRadius: 4,
+    elevation: 2,
   },
-  infoTitulo: { fontSize: 14, fontWeight: '700', color: DARK, marginBottom: 10 },
-  infoItem: { fontSize: 13, color: '#6b7c85', marginBottom: 6, lineHeight: 18 },
-  btnLogout: {
-    backgroundColor: '#e74c3c',
+  sectionRow:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  sectionAccent: { width: 3, height: 18, backgroundColor: BUTTON, borderRadius: 2 },
+  sectionText:   { fontSize: 14, fontWeight: '700', color: TITULO },
+
+  postBadge:   { borderRadius: 10, padding: 14 },
+  postEstado:  { fontSize: 14, fontWeight: '700', marginBottom: 6 },
+  postMotivo:  { fontSize: 13, color: TEXT, fontStyle: 'italic', marginBottom: 6 },
+  postInfo:    { fontSize: 12, color: TEXT },
+  postDesc:    { fontSize: 13, color: TEXT, lineHeight: 20, marginBottom: 14 },
+  postBtn:     { backgroundColor: BUTTON, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  postBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  permisoFila:   { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10 },
+  permisoDivider:{ borderBottomWidth: 1, borderBottomColor: DIVIDER },
+  checkCircle:   { width: 22, height: 22, borderRadius: 11, backgroundColor: BUTTON + '22', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  checkIcon:     { fontSize: 12, color: BUTTON, fontWeight: '700' },
+  permisoTexto:  { flex: 1, fontSize: 13, color: TEXT, lineHeight: 20 },
+
+  logoutBtn: {
+    backgroundColor: '#E74C3C',
     borderRadius: 12,
     paddingVertical: 15,
     alignItems: 'center',
-    marginHorizontal: 16,
-    elevation: 3,
+    shadowColor: '#E74C3C',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  btnLogoutText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  logoutText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  // Modales
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalBox: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+  },
+  modalTitle:    { fontSize: 18, fontWeight: '800', color: TITULO, marginBottom: 18 },
+  postModalDesc: { fontSize: 13, color: TEXT, lineHeight: 20, marginBottom: 16 },
+  inputLabel:    { fontSize: 12, fontWeight: '600', color: TEXT, marginBottom: 6 },
+  input: {
+    borderWidth: 1,
+    borderColor: DIVIDER,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: TITULO,
+    backgroundColor: '#FAFBFC',
+    marginBottom: 14,
+  },
+  textArea:    { height: 110, paddingTop: 12 },
+  rolSelector: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  rolOption: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: DIVIDER,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: '#F8FAFB',
+  },
+  rolOptionActive:     { borderColor: BUTTON, backgroundColor: BUTTON + '18' },
+  rolOptionText:       { fontSize: 13, fontWeight: '600', color: TEXT },
+  rolOptionTextActive: { color: BUTTON },
+  modalBtns:      { flexDirection: 'row', gap: 12, marginTop: 4 },
+  modalCancelBtn: { flex: 1, borderWidth: 1.5, borderColor: DIVIDER, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  modalCancelText:{ fontSize: 14, fontWeight: '600', color: TEXT },
+  modalSaveBtn:   { flex: 1, backgroundColor: BUTTON, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  modalSaveText:  { fontSize: 14, fontWeight: '700', color: '#fff' },
 });

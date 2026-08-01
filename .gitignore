@@ -39,3 +39,10 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Backend (Flask)
+backend/.env
+backend/__pycache__/
+backend/**/__pycache__/
+backend/uploads/*
+!backend/uploads/.gitkeep

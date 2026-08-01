@@ -1,0 +1,23 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class Config:
+    DB_HOST     = os.getenv('DB_HOST', 'localhost')
+    DB_USER     = os.getenv('DB_USER', 'root')
+    DB_PASSWORD = os.getenv('DB_PASSWORD', '')
+    DB_NAME     = os.getenv('DB_NAME', 'guardian_zero3')
+    DB_PORT     = int(os.getenv('DB_PORT', 3306))
+
+    SECRET_KEY       = os.getenv('SECRET_KEY', 'cambia_esto_en_produccion')
+    JWT_EXPIRATION_H = 24
+
+    MAIL_SERVER         = 'smtp.gmail.com'
+    MAIL_PORT           = 587
+    MAIL_USE_TLS        = True
+    MAIL_USERNAME       = os.getenv('MAIL_USERNAME')
+    MAIL_PASSWORD       = os.getenv('MAIL_PASSWORD')
+    MAIL_DEFAULT_SENDER = os.getenv('MAIL_USERNAME')
+
+    SERVER_URL = os.getenv('SERVER_URL', 'http://localhost:5000')

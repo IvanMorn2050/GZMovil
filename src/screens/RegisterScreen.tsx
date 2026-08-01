@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -18,145 +19,175 @@ import { useAuth } from '../hooks/useAuth';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
 
+const TITULO  = '#0E3A44';
+const BUTTON  = '#1AA6A6';
+const HEADER  = '#B6C3C9';
+const DIVIDER = '#D9D9D9';
+const TEXT    = '#6B7C85';
+
 const ROLES: { valor: RolUsuario; titulo: string; desc: string; emoji: string }[] = [
-  {
-    valor: 'ciudadano',
-    titulo: 'Ciudadano',
-    desc: 'Reporta desastres en tu comunidad',
-    emoji: '🏘️',
-  },
-  {
-    valor: 'voluntario',
-    titulo: 'Voluntario',
-    desc: 'Atiende emergencias en el campo',
-    emoji: '🤝',
-  },
+  { valor: 'ciudadano',  titulo: 'Ciudadano',  desc: 'Reporta desastres en tu comunidad', emoji: '🏘️' },
+  { valor: 'voluntario', titulo: 'Voluntario', desc: 'Atiende emergencias en el campo',   emoji: '🤝' },
 ];
 
 export default function RegisterScreen() {
   const navigation = useNavigation<Nav>();
   const { register } = useAuth();
 
-  const [nombre, setNombre] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmar, setConfirmar] = useState('');
-  const [rol, setRol] = useState<RolUsuario>('ciudadano');
-  const [verPassword, setVerPassword] = useState(false);
+  const [nombre, setNombre]         = useState('');
+  const [email, setEmail]           = useState('');
+  const [password, setPassword]     = useState('');
+  const [confirmar, setConfirmar]   = useState('');
+  const [rol, setRol]               = useState<RolUsuario>('ciudadano');
+  const [verPass, setVerPass]       = useState(false);
+  const [verConf, setVerConf]       = useState(false);
+  const [enviando, setEnviando]     = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!nombre.trim() || !email.trim() || !password.trim() || !confirmar.trim()) {
       Alert.alert('Campos requeridos', 'Completa todos los campos.');
       return;
     }
-    if (password !== confirmar) {
-      Alert.alert('Error', 'Las contraseñas no coinciden.');
-      return;
-    }
-    if (password.length < 4) {
-      Alert.alert('Error', 'La contraseña debe tener al menos 4 caracteres.');
-      return;
-    }
-    const resultado = register(nombre.trim(), email.trim().toLowerCase(), password, rol);
-    if (resultado.success) {
+    if (password !== confirmar) { Alert.alert('Error', 'Las contraseñas no coinciden.'); return; }
+    if (password.length < 4)   { Alert.alert('Error', 'Mínimo 4 caracteres.'); return; }
+
+    setEnviando(true);
+    const res = await register(nombre.trim(), email.trim().toLowerCase(), password, rol);
+    setEnviando(false);
+
+    if (res.success) {
       Alert.alert(
-        '¡Registro exitoso!',
-        `Bienvenido como ${rol === 'voluntario' ? 'Voluntario' : 'Ciudadano'}. Ya puedes iniciar sesión.`,
-        [{ text: 'Ir a login', onPress: () => navigation.navigate('Login') }]
+        '¡Registro exitoso! ✅',
+        'Te enviamos un correo de verificación. Revisa tu bandeja de entrada y activa tu cuenta antes de iniciar sesión.',
+        [{ text: 'Ir al login', onPress: () => navigation.navigate('Login') }],
       );
     } else {
-      Alert.alert('Error', resultado.message);
+      Alert.alert('Error al registrar', res.message);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={s.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backText}>← Volver</Text>
+      {/* Header con botón volver */}
+      <View style={s.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} activeOpacity={0.7}>
+          <Text style={s.backIcon}>←</Text>
         </TouchableOpacity>
-        <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
-        <Text style={styles.appName}>GuardianZero</Text>
+        <Image source={require('../../assets/logo.png')} style={s.logo} resizeMode="contain" />
+        <View style={{ flex: 1 }}>
+          <Text style={s.headerTitle}>GUARDIAN ZERO</Text>
+          <Text style={s.headerSub}>Crear nueva cuenta</Text>
+        </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
-        <Text style={styles.titulo}>Crear Cuenta</Text>
-        <Text style={styles.subtitulo}>¿Cómo quieres participar?</Text>
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
-        <View style={styles.rolesRow}>
+        <Text style={s.titulo}>Crear Cuenta</Text>
+        <Text style={s.subtitulo}>Selecciona cómo quieres participar en GuardianZero.</Text>
+
+        {/* Selector de rol */}
+        <View style={s.rolesRow}>
           {ROLES.map((r) => {
             const activo = rol === r.valor;
             return (
               <TouchableOpacity
                 key={r.valor}
-                style={[styles.rolCard, activo && styles.rolCardActivo]}
+                style={[s.rolCard, activo && s.rolCardActivo]}
                 onPress={() => setRol(r.valor)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.rolEmoji}>{r.emoji}</Text>
-                <Text style={[styles.rolTitulo, activo && styles.rolTituloActivo]}>{r.titulo}</Text>
-                <Text style={[styles.rolDesc, activo && styles.rolDescActivo]}>{r.desc}</Text>
+                <Text style={s.rolEmoji}>{r.emoji}</Text>
+                <Text style={[s.rolTitulo, activo && s.rolTituloActivo]}>{r.titulo}</Text>
+                <Text style={s.rolDesc}>{r.desc}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        <Text style={styles.label}>Nombre completo</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Tu nombre"
-          placeholderTextColor="#aab4bc"
-          value={nombre}
-          onChangeText={setNombre}
-        />
-
-        <Text style={styles.label}>Correo electrónico</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="correo@ejemplo.com"
-          placeholderTextColor="#aab4bc"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-        />
-
-        <Text style={styles.label}>Contraseña</Text>
-        <View style={styles.inputRow}>
+        {/* Nombre */}
+        <View style={s.campo}>
+          <Text style={s.campoLabel}>Nombre completo</Text>
           <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder="Mínimo 4 caracteres"
-            placeholderTextColor="#aab4bc"
-            secureTextEntry={!verPassword}
-            value={password}
-            onChangeText={setPassword}
+            style={s.input}
+            placeholder="Tu nombre"
+            placeholderTextColor="#B0B8BC"
+            value={nombre}
+            onChangeText={setNombre}
           />
-          <TouchableOpacity style={styles.eyeBtn} onPress={() => setVerPassword(!verPassword)}>
-            <Text style={styles.eyeText}>{verPassword ? '🙈' : '👁️'}</Text>
-          </TouchableOpacity>
         </View>
 
-        <Text style={styles.label}>Confirmar contraseña</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Repite tu contraseña"
-          placeholderTextColor="#aab4bc"
-          secureTextEntry={!verPassword}
-          value={confirmar}
-          onChangeText={setConfirmar}
-        />
+        {/* Email */}
+        <View style={s.campo}>
+          <Text style={s.campoLabel}>Correo electrónico</Text>
+          <TextInput
+            style={s.input}
+            placeholder="correo@ejemplo.com"
+            placeholderTextColor="#B0B8BC"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={setEmail}
+          />
+        </View>
 
-        <TouchableOpacity style={styles.btnPrimary} onPress={handleRegister} activeOpacity={0.85}>
-          <Text style={styles.btnPrimaryText}>Registrarse como {rol === 'voluntario' ? 'Voluntario' : 'Ciudadano'}</Text>
+        {/* Contraseña */}
+        <View style={s.campo}>
+          <Text style={s.campoLabel}>Contraseña</Text>
+          <View style={s.inputRow}>
+            <TextInput
+              style={[s.input, s.inputFlex]}
+              placeholder="Mínimo 4 caracteres"
+              placeholderTextColor="#B0B8BC"
+              secureTextEntry={!verPass}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity style={s.eyeBtn} onPress={() => setVerPass(!verPass)} activeOpacity={0.7}>
+              <Image
+                source={require('../../assets/ocultar_contra.png')}
+                style={[s.eyeIcon, verPass && s.eyeIconActivo]}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Confirmar contraseña */}
+        <View style={s.campo}>
+          <Text style={s.campoLabel}>Confirmar contraseña</Text>
+          <View style={s.inputRow}>
+            <TextInput
+              style={[s.input, s.inputFlex]}
+              placeholder="Repite tu contraseña"
+              placeholderTextColor="#B0B8BC"
+              secureTextEntry={!verConf}
+              value={confirmar}
+              onChangeText={setConfirmar}
+            />
+            <TouchableOpacity style={s.eyeBtn} onPress={() => setVerConf(!verConf)} activeOpacity={0.7}>
+              <Image
+                source={require('../../assets/ocultar_contra.png')}
+                style={[s.eyeIcon, verConf && s.eyeIconActivo]}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Botón registrar */}
+        <TouchableOpacity style={s.btnPrimary} onPress={handleRegister} activeOpacity={0.85} disabled={enviando}>
+          {enviando
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={s.btnText}>Registrarse como {rol === 'voluntario' ? 'Voluntario' : 'Ciudadano'}</Text>}
         </TouchableOpacity>
 
-        <View style={styles.loginRow}>
-          <Text style={styles.loginText}>¿Ya tienes cuenta? </Text>
+        <View style={s.linkRow}>
+          <Text style={s.linkText}>¿Ya tienes cuenta? </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-            <Text style={styles.loginLink}>Inicia sesión</Text>
+            <Text style={s.link}>Inicia sesión</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -164,72 +195,88 @@ export default function RegisterScreen() {
   );
 }
 
-const PRIMARY = '#3ab5c6';
-const DARK = '#0d4f5c';
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F5F7F8' },
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#fff' },
   header: {
-    backgroundColor: DARK,
+    backgroundColor: HEADER,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
     paddingTop: 50,
-    paddingBottom: 24,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    paddingBottom: 14,
   },
-  backBtn: { position: 'absolute', left: 20, top: 52 },
-  backText: { color: '#a8d8e0', fontSize: 15, fontWeight: '600' },
-  logo: { width: 72, height: 72, marginBottom: 6 },
-  appName: { color: '#fff', fontSize: 20, fontWeight: '800' },
-  form: { padding: 24, paddingBottom: 48 },
-  titulo: { fontSize: 22, fontWeight: '700', color: DARK, marginBottom: 4 },
-  subtitulo: { fontSize: 14, color: '#8a9ba8', marginBottom: 18 },
+  backBtn: { padding: 6 },
+  backIcon: { fontSize: 22, color: TITULO, fontWeight: '700' },
+  logo: { width: 36, height: 36 },
+  headerTitle: { fontSize: 15, fontWeight: '800', color: TITULO, letterSpacing: 0.5 },
+  headerSub: { fontSize: 11, color: TITULO, opacity: 0.65, marginTop: 1 },
+
+  scroll: { padding: 24, paddingTop: 24, paddingBottom: 48 },
+
+  titulo: { fontSize: 22, fontWeight: '800', color: TITULO, marginBottom: 6 },
+  subtitulo: { fontSize: 13, color: TEXT, lineHeight: 19, marginBottom: 22 },
+
+  /* Roles */
   rolesRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   rolCard: {
     flex: 1,
     borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#e0eaee',
+    borderWidth: 1.5,
+    borderColor: DIVIDER,
     padding: 14,
     alignItems: 'center',
-    backgroundColor: '#f8fbfc',
+    backgroundColor: '#fff',
+    gap: 4,
   },
-  rolCardActivo: {
-    borderColor: PRIMARY,
-    backgroundColor: PRIMARY + '15',
+  rolCardActivo: { borderColor: BUTTON, backgroundColor: BUTTON + '12' },
+  rolEmoji: { fontSize: 28, marginBottom: 4 },
+  rolTitulo: { fontSize: 13, fontWeight: '700', color: TEXT },
+  rolTituloActivo: { color: TITULO },
+  rolDesc: { fontSize: 11, color: TEXT, textAlign: 'center', lineHeight: 15 },
+
+  /* Campos */
+  campo: { marginBottom: 16 },
+  campoLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: TITULO,
+    marginBottom: 7,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  rolEmoji: { fontSize: 28, marginBottom: 6 },
-  rolTitulo: { fontSize: 14, fontWeight: '700', color: '#4a6470', marginBottom: 4 },
-  rolTituloActivo: { color: DARK },
-  rolDesc: { fontSize: 11, color: '#aab4bc', textAlign: 'center', lineHeight: 15 },
-  rolDescActivo: { color: '#5a8090' },
-  label: { fontSize: 13, fontWeight: '600', color: '#4a6470', marginBottom: 6 },
+  inputRow: { position: 'relative' },
   input: {
-    backgroundColor: '#f0f4f5',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    fontSize: 15,
-    color: '#1a2730',
-    marginBottom: 16,
-  },
-  inputRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  eyeBtn: { position: 'absolute', right: 12, top: 12, padding: 4 },
-  eyeText: { fontSize: 18 },
-  btnPrimary: {
-    backgroundColor: PRIMARY,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: DIVIDER,
     borderRadius: 12,
-    paddingVertical: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: TITULO,
+  },
+  inputFlex: { paddingRight: 50 },
+  eyeBtn: { position: 'absolute', right: 14, top: 12, padding: 4 },
+  eyeIcon: { width: 24, height: 24, opacity: 0.3 },
+  eyeIconActivo: { opacity: 1, tintColor: BUTTON },
+
+  btnPrimary: {
+    backgroundColor: BUTTON,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: PRIMARY,
+    shadowColor: BUTTON,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 5,
   },
-  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  loginRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
-  loginText: { color: '#6b7c85', fontSize: 14 },
-  loginLink: { color: PRIMARY, fontSize: 14, fontWeight: '700' },
+  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  linkRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 22 },
+  linkText: { color: TEXT, fontSize: 14 },
+  link: { color: BUTTON, fontSize: 14, fontWeight: '700' },
 });

@@ -21,10 +21,38 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.ivanmoreno.guardianzero",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Guardian Zero necesita tu ubicación para adjuntarla a los reportes de incidentes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Guardian Zero necesita acceso a tu galería para adjuntar fotos o videos a los reportes.",
+          "cameraPermission": "Guardian Zero necesita acceso a tu cámara para tomar fotos de los incidentes."
+        }
+      ],
+      "expo-av"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "a96ad37e-3492-4278-9a1d-bacedf7d5d19"
+      }
     }
   }
 }

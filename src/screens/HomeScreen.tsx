@@ -1,318 +1,368 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
-  FlatList,
+  ActivityIndicator,
   Image,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useAuth } from '../hooks/useAuth';
-import { getReportes, getEstadisticas, toggleAtender } from '../services/reporteService';
-import { Reporte, Estadisticas } from '../types';
+import MapView, { Marker } from 'react-native-maps';
+import { useNavigation } from '@react-navigation/native';
+import { getHomeStatsApi } from '../services/authService';
 
-// ─── Mapas de estilos por tipo y estado ───────────────────────────────────────
+const TITULO  = '#0E3A44';
+const BUTTON  = '#1AA6A6';
+const HEADER  = '#B6C3C9';
+const DIVIDER = '#D9D9D9';
+const TEXT    = '#6B7C85';
 
-const TIPO_META: Record<string, { emoji: string; color: string }> = {
-  Terremoto:         { emoji: '🌋', color: '#8B4513' },
-  Inundación:        { emoji: '🌧️', color: '#1565C0' },
-  'Incendio Forestal': { emoji: '🔥', color: '#E65100' },
-  Huracán:           { emoji: '🌀', color: '#6A1B9A' },
-  Deslizamiento:     { emoji: '⛰️', color: '#5D4037' },
-  Tsunami:           { emoji: '🌊', color: '#0D47A1' },
+const NIVEL_COLOR: Record<string, string> = {
+  Evacuacion:  '#E74C3C',
+  Precaucion:  '#E67E22',
+  Informativa: '#3498DB',
 };
 
-const ESTADO_META: Record<string, { color: string; bg: string }> = {
-  Activo:        { color: '#c0392b', bg: '#fdecec' },
-  'En atención': { color: '#e67e22', bg: '#fef5ec' },
-  Resuelto:      { color: '#27ae60', bg: '#eafaf1' },
+const SIMBOLOGIA = [
+  { img: require('../../assets/incendio.png'),                 l: 'Incendios' },
+  { img: require('../../assets/inundacion.png'),               l: 'Inundaciones' },
+  { img: require('../../assets/terremoto.png'),                l: 'Sismos' },
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  { img: require('../../assets/tormeta electrica.png'),        l: 'T. Eléctricas' },
+  { img: require('../../assets/derrumbe.png'),                 l: 'Derrumbes' },
+  { img: require('../../assets/deslizamiento-de-tierra.png'),  l: 'Deslizamiento' },
+  { img: require('../../assets/erupcion.png'),                 l: 'Erupciones' },
+];
+
+function getDesastreImg(nombre: string): any | null {
+  const n = nombre.toLowerCase();
+  if (n.includes('incendio'))                              return require('../../assets/incendio.png');
+  if (n.includes('inundacion') || n.includes('inundación')) return require('../../assets/inundacion.png');
+  if (n.includes('terremoto') || n.includes('sismo'))      return require('../../assets/terremoto.png');
+  if (n.includes('tormenta') || n.includes('electrica') || n.includes('eléctrica'))
+                                                           // eslint-disable-next-line @typescript-eslint/no-var-requires
+                                                           return require('../../assets/tormeta electrica.png');
+  if (n.includes('derrumbe'))                              return require('../../assets/derrumbe.png');
+  if (n.includes('deslizamiento'))                         return require('../../assets/deslizamiento-de-tierra.png');
+  if (n.includes('erupcion') || n.includes('erupción'))    return require('../../assets/erupcion.png');
+  return null;
+}
+
+interface HomeStats {
+  total_activos:       number;
+  total_reportes:      number;
+  voluntarios_activos: number;
+  albergues_activos:   number;
+  reportes_por_tipo:   { nombre: string; emoji: string; total: number; pct: number }[];
+  alertas_recientes:   { titulo: string; nivel: string; zona: string; creado_en: string }[];
+  marcadores:          { latitud: number; longitud: number; emoji: string }[];
+}
+
+const DEFAULT_STATS: HomeStats = {
+  total_activos: 0, total_reportes: 0,
+  voluntarios_activos: 0, albergues_activos: 0,
+  reportes_por_tipo: [], alertas_recientes: [], marcadores: [],
 };
 
-// ─── Tarjeta de estadística ────────────────────────────────────────────────────
+function tiempoRelativo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.floor(hrs / 24)}d`;
+}
 
-function StatCard({ num, label, color }: { num: number; label: string; color: string }) {
+function SectionTitle({ text }: { text: string }) {
   return (
-    <View style={[styles.statCard, { borderTopColor: color }]}>
-      <Text style={[styles.statNum, { color }]}>{num}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+    <View style={s.sectionTitleRow}>
+      <View style={s.sectionTitleAccent} />
+      <Text style={s.sectionTitleText}>{text}</Text>
     </View>
   );
 }
 
-// ─── Tarjeta de reporte ────────────────────────────────────────────────────────
+function Card({ children, style }: { children: React.ReactNode; style?: object }) {
+  return <View style={[s.card, style]}>{children}</View>;
+}
 
-function ReporteCard({
-  item,
-  esVoluntario,
-  usuarioId,
-  onAtender,
-}: {
-  item: Reporte;
-  esVoluntario: boolean;
-  usuarioId: string;
-  onAtender: () => void;
-}) {
-  const meta = TIPO_META[item.tipo] ?? { emoji: '⚠️', color: '#888' };
-  const estado = ESTADO_META[item.estado] ?? { color: '#888', bg: '#f5f5f5' };
-  const yaAtiende = item.voluntariosIds.includes(usuarioId);
-
+function Barra({ pct, color }: { pct: number; color: string }) {
   return (
-    <View style={styles.card}>
-      {/* Encabezado: tipo + estado */}
-      <View style={styles.cardTop}>
-        <View style={[styles.tipoBadge, { backgroundColor: meta.color + '18' }]}>
-          <Text style={styles.tipoEmoji}>{meta.emoji}</Text>
-          <Text style={[styles.tipoBadgeText, { color: meta.color }]}>{item.tipo}</Text>
-        </View>
-        <View style={[styles.estadoBadge, { backgroundColor: estado.bg }]}>
-          <Text style={[styles.estadoText, { color: estado.color }]}>{item.estado}</Text>
-        </View>
-      </View>
-
-      {/* Contenido */}
-      <Text style={styles.cardTitulo} numberOfLines={2}>{item.titulo}</Text>
-      <Text style={styles.cardUbicacion}>📍 {item.ubicacion}</Text>
-      <Text style={styles.cardDesc} numberOfLines={2}>{item.descripcion}</Text>
-
-      {/* Pie */}
-      <View style={styles.cardFooter}>
-        <View style={styles.cardFooterLeft}>
-          <Text style={styles.cardMeta}>👤 {item.usuarioNombre}</Text>
-          <Text style={styles.cardMeta}>📅 {item.fecha}</Text>
-        </View>
-        <View style={styles.cardFooterRight}>
-          <Text style={styles.voluntariosText}>
-            🤝 {item.voluntariosIds.length} voluntario{item.voluntariosIds.length !== 1 ? 's' : ''}
-          </Text>
-          {esVoluntario && item.estado !== 'Resuelto' && (
-            <TouchableOpacity
-              style={[styles.atenderBtn, yaAtiende && styles.atenderBtnActivo]}
-              onPress={onAtender}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.atenderBtnText, yaAtiende && styles.atenderBtnTextActivo]}>
-                {yaAtiende ? '✓ Atendiendo' : 'Atender'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+    <View style={s.barTrack}>
+      <View style={[s.barFill, { width: `${pct}%` as any, backgroundColor: color }]} />
     </View>
   );
 }
-
-// ─── Pantalla principal ────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
-  const navigation = useNavigation<any>();
-  const { usuario } = useAuth();
+  const nav = useNavigation<any>();
+  const [stats,     setStats]     = useState<HomeStats>(DEFAULT_STATS);
+  const [cargando,  setCargando]  = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [reportes, setReportes] = useState<Reporte[]>([]);
-  const [stats, setStats] = useState<Estadisticas>({ total: 0, activos: 0, enAtencion: 0, resueltos: 0 });
-
-  const esVoluntario = usuario?.rol === 'voluntario' || usuario?.rol === 'coordinador';
-
-  const refrescar = useCallback(() => {
-    setReportes(getReportes());
-    setStats(getEstadisticas());
+  const cargar = useCallback(async (isRefresh = false) => {
+    if (!isRefresh) setCargando(true);
+    try {
+      const data = await getHomeStatsApi();
+      setStats(data);
+    } catch {
+      // mantiene los defaults si falla
+    } finally {
+      setCargando(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  useFocusEffect(refrescar);
+  useEffect(() => { cargar(); }, [cargar]);
 
-  const handleAtender = (reporteId: string) => {
-    const ahora = toggleAtender(reporteId, usuario!.id);
-    Alert.alert(
-      ahora ? '¡Registrado!' : 'Cancelado',
-      ahora
-        ? 'Quedaste registrado como voluntario en este reporte.'
-        : 'Ya no apareces como voluntario en este reporte.'
-    );
-    refrescar();
-  };
+  const onRefresh = () => { setRefreshing(true); cargar(true); };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Image source={require('../../assets/logo.png')} style={styles.headerLogo} resizeMode="contain" />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>GuardianZero</Text>
-          <Text style={styles.headerSub}>
-            Hola, {usuario?.nombre.split(' ')[0]} · {usuario?.rol === 'voluntario' ? '🤝 Voluntario' : usuario?.rol === 'coordinador' ? '⭐ Coordinador' : '🏘️ Ciudadano'}
-          </Text>
+    <View style={s.root}>
+      <View style={s.header}>
+        <Image source={require('../../assets/logo.png')} style={s.logo} resizeMode="contain" />
+        <View>
+          <Text style={s.headerTitle}>GUARDIAN ZERO</Text>
+          <Text style={s.headerSub}>Panorámica Nacional de Incidentes</Text>
         </View>
       </View>
 
-      <FlatList
-        data={reportes}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.lista}
-        renderItem={({ item }) => (
-          <ReporteCard
-            item={item}
-            esVoluntario={esVoluntario}
-            usuarioId={usuario!.id}
-            onAtender={() => handleAtender(item.id)}
-          />
-        )}
-        ListEmptyComponent={
-          <Text style={styles.vacio}>Sin reportes aún. ¡Crea el primero!</Text>
-        }
-        ListHeaderComponent={
-          <>
-            {/* Registro de ocurridos */}
-            <View style={styles.registroBox}>
-              <Text style={styles.registroTitulo}>📊  Registro de ocurrencias</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsScroll}>
-                <StatCard num={stats.total}      label="Total"       color="#0d4f5c" />
-                <StatCard num={stats.activos}    label="Activos"     color="#c0392b" />
-                <StatCard num={stats.enAtencion} label="En atención" color="#e67e22" />
-                <StatCard num={stats.resueltos}  label="Resueltos"   color="#27ae60" />
-              </ScrollView>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BUTTON} />}
+      >
+        {/* ── Mapa ── */}
+        <Card>
+          <SectionTitle text="Mapa de Incidentes — Querétaro" />
+          <View style={s.mapRow}>
+            <View style={s.mapWrapper}>
+              <MapView
+                style={StyleSheet.absoluteFillObject}
+                initialRegion={{
+                  latitude:      20.5888,
+                  longitude:    -100.3899,
+                  latitudeDelta:  1.4,
+                  longitudeDelta: 1.2,
+                }}
+                scrollEnabled={false}
+                zoomEnabled={false}
+              >
+                {stats.marcadores.map((m, i) => (
+                  <Marker
+                    key={i}
+                    coordinate={{ latitude: m.latitud, longitude: m.longitud }}
+                  >
+                    <View style={s.markerBubble}>
+                      <Text style={{ fontSize: 16 }}>{m.emoji}</Text>
+                    </View>
+                  </Marker>
+                ))}
+              </MapView>
             </View>
+            <View style={s.simbologiaCol}>
+              <Text style={s.simbologiaTitulo}>Simbología</Text>
+              {SIMBOLOGIA.map((item) => (
+                <View key={item.l} style={s.simbologiaFila}>
+                  <Image source={item.img} style={s.simbologiaImg} resizeMode="contain" />
+                  <Text style={s.simbologiaLabel}>{item.l}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </Card>
 
-            <Text style={styles.seccionTitulo}>🚨  Alertas activas</Text>
-          </>
-        }
-      />
+        {/* ── Incidentes activos ── */}
+        <Card>
+          <SectionTitle text="Incidentes Activos Totales" />
+          {cargando ? (
+            <ActivityIndicator color={BUTTON} style={{ paddingVertical: 20 }} />
+          ) : (
+            <View style={s.incidentesRow}>
+              <Text style={s.bigNum}>{stats.total_activos}</Text>
+              <View style={s.incidentesList}>
+                {stats.reportes_por_tipo.slice(0, 3).map((t) => {
+                  const img = getDesastreImg(t.nombre);
+                  return (
+                    <View key={t.nombre} style={s.incidenteFila}>
+                      {img
+                        ? <Image source={img} style={s.incidenteImg} resizeMode="contain" />
+                        : <Text style={{ fontSize: 14 }}>{t.emoji}</Text>
+                      }
+                      <Text style={s.incidenteLabel}>{t.nombre} ({t.total})</Text>
+                      {t.total > 0 && <View style={s.alertDot} />}
+                    </View>
+                  );
+                })}
+                {stats.reportes_por_tipo.length === 0 && (
+                  <Text style={[s.incidenteLabel, { fontStyle: 'italic' }]}>Sin reportes activos</Text>
+                )}
+              </View>
+            </View>
+          )}
+        </Card>
+
+        {/* ── Cómo estamos ayudando ── */}
+        <Card>
+          <SectionTitle text="Cómo estamos ayudando" />
+          {cargando ? (
+            <ActivityIndicator color={BUTTON} style={{ paddingVertical: 20 }} />
+          ) : (
+            <View style={s.ayudaGrid}>
+              <View style={s.ayudaItem}>
+                <Text style={s.ayudaNum}>{stats.total_reportes}</Text>
+                <Text style={s.ayudaLabel}>Reportes{'\n'}Registrados</Text>
+              </View>
+              <View style={s.ayudaItem}>
+                <Text style={s.ayudaNum}>{stats.voluntarios_activos}</Text>
+                <Text style={s.ayudaLabel}>Voluntarios{'\n'}Activos</Text>
+              </View>
+              <View style={s.ayudaItem}>
+                <Text style={s.ayudaNum}>{stats.albergues_activos}</Text>
+                <Text style={s.ayudaLabel}>Albergues{'\n'}Activos</Text>
+              </View>
+            </View>
+          )}
+        </Card>
+
+        {/* ── Tipos de desastres + alertas ── */}
+        <Card>
+          <SectionTitle text="Tipos de Desastres Reportados" />
+          {cargando ? (
+            <ActivityIndicator color={BUTTON} style={{ paddingVertical: 20 }} />
+          ) : stats.reportes_por_tipo.length === 0 ? (
+            <Text style={s.sinDatos}>Sin reportes por tipo aún</Text>
+          ) : (
+            stats.reportes_por_tipo.map(({ nombre, pct, total }) => (
+              <View key={nombre} style={s.tipoFila}>
+                <Text style={s.tipoLabel}>{nombre} ({total})</Text>
+                <View style={s.tipoBarTrack}>
+                  <View style={[s.tipoBarFill, { width: `${pct}%` as any }]} />
+                </View>
+              </View>
+            ))
+          )}
+
+          <View style={s.separador} />
+          <Text style={s.subSectionTitle}>Últimas Alertas Emitidas</Text>
+
+          {cargando ? (
+            <ActivityIndicator color={BUTTON} />
+          ) : stats.alertas_recientes.length === 0 ? (
+            <Text style={s.sinDatos}>Sin alertas activas</Text>
+          ) : (
+            stats.alertas_recientes.map((a, i) => (
+              <View key={i} style={s.alertaFila}>
+                <View style={[s.alertaDot2, { backgroundColor: NIVEL_COLOR[a.nivel] ?? '#6B7C85' }]} />
+                <Text style={s.alertaLabel}>{a.titulo} · {a.zona}</Text>
+                <Text style={s.alertaTiempo}>{tiempoRelativo(a.creado_en)}</Text>
+              </View>
+            ))
+          )}
+        </Card>
+
+      </ScrollView>
 
       {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('CreateReport')}
-        activeOpacity={0.85}
-      >
-        <Image
-          source={require('../../assets/agregar_reporte.jpeg')}
-          style={styles.fabIcon}
-          resizeMode="contain"
-        />
+      <TouchableOpacity style={s.fab} onPress={() => nav.navigate('CreateReport')} activeOpacity={0.85}>
+        <Text style={s.fabText}>+</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
-// ─── Estilos ───────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F5F7F8' },
 
-const PRIMARY = '#3ab5c6';
-const DARK = '#0d4f5c';
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f4f5' },
-
-  // Header
   header: {
-    backgroundColor: DARK,
+    backgroundColor: HEADER,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 52,
-    paddingBottom: 18,
-  },
-  headerLogo: { width: 42, height: 42 },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  headerSub: { color: '#a8d8e0', fontSize: 12, marginTop: 1 },
-
-  // Registro de ocurridos
-  registroBox: {
-    backgroundColor: '#fff',
-    marginHorizontal: 0,
-    marginBottom: 0,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e8edf0',
-  },
-  registroTitulo: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: DARK,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-  },
-  statsScroll: { paddingHorizontal: 12 },
-  statCard: {
-    backgroundColor: '#f8fbfc',
-    borderRadius: 12,
-    borderTopWidth: 3,
-    paddingVertical: 12,
     paddingHorizontal: 18,
-    alignItems: 'center',
-    marginHorizontal: 4,
-    minWidth: 90,
+    paddingTop: 50,
+    paddingBottom: 14,
   },
-  statNum: { fontSize: 28, fontWeight: '800' },
-  statLabel: { fontSize: 11, color: '#8a9ba8', marginTop: 2, fontWeight: '600' },
+  logo: { width: 36, height: 36 },
+  headerTitle: { fontSize: 15, fontWeight: '800', color: TITULO, letterSpacing: 0.5 },
+  headerSub:   { fontSize: 11, color: TITULO, opacity: 0.65, marginTop: 1 },
 
-  // Lista
-  seccionTitulo: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: DARK,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  lista: { paddingBottom: 100 },
+  scroll: { padding: 14, paddingBottom: 100, gap: 12 },
 
-  // Tarjeta de reporte
   card: {
     backgroundColor: '#fff',
     borderRadius: 14,
     padding: 16,
-    marginHorizontal: 12,
-    marginBottom: 12,
-    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
+    shadowOpacity: 0.06,
     shadowRadius: 4,
+    elevation: 2,
   },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  tipoBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  tipoEmoji: { fontSize: 13 },
-  tipoBadgeText: { fontSize: 12, fontWeight: '700' },
-  estadoBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  estadoText: { fontSize: 11, fontWeight: '700' },
-  cardTitulo: { fontSize: 15, fontWeight: '700', color: '#1a2730', marginBottom: 3 },
-  cardUbicacion: { fontSize: 12, color: '#8a9ba8', marginBottom: 6 },
-  cardDesc: { fontSize: 13, color: '#6b7c85', lineHeight: 18, marginBottom: 12 },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  cardFooterLeft: { gap: 2 },
-  cardFooterRight: { alignItems: 'flex-end', gap: 6 },
-  cardMeta: { fontSize: 11, color: '#aab4bc' },
-  voluntariosText: { fontSize: 12, color: '#8a9ba8', fontWeight: '600' },
-  atenderBtn: {
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: PRIMARY,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+
+  sectionTitleRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  sectionTitleAccent:{ width: 3, height: 18, backgroundColor: BUTTON, borderRadius: 2 },
+  sectionTitleText:  { fontSize: 14, fontWeight: '700', color: TITULO },
+
+  mapRow:    { flexDirection: 'row', gap: 12 },
+  mapWrapper: { flex: 1, height: 190, borderRadius: 10, overflow: 'hidden' },
+  markerBubble: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
-  atenderBtnActivo: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  atenderBtnText: { fontSize: 12, fontWeight: '700', color: PRIMARY },
-  atenderBtnTextActivo: { color: '#fff' },
+  simbologiaCol:    { width: 110, justifyContent: 'flex-start' },
+  simbologiaTitulo: { fontSize: 10, fontWeight: '700', color: TITULO, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  simbologiaFila:   { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
+  simbologiaImg:    { width: 16, height: 16 },
+  simbologiaLabel:  { fontSize: 10, color: TEXT },
 
-  vacio: { textAlign: 'center', color: '#aab4bc', marginTop: 60, fontSize: 15 },
+  incidentesRow:  { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  bigNum:         { fontSize: 52, fontWeight: '900', color: TITULO, lineHeight: 56 },
+  incidentesList: { flex: 1, gap: 6 },
+  incidenteFila:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  incidenteImg:   { width: 18, height: 18 },
+  incidenteLabel: { flex: 1, fontSize: 12, color: TEXT },
+  alertDot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E74C3C' },
 
-  // FAB
+  ayudaGrid:  { flexDirection: 'row', justifyContent: 'space-around' },
+  ayudaItem:  { alignItems: 'center', flex: 1 },
+  ayudaNum:   { fontSize: 26, fontWeight: '800', color: BUTTON, marginBottom: 4 },
+  ayudaLabel: { fontSize: 11, color: TEXT, textAlign: 'center', lineHeight: 15 },
+
+  tipoFila:     { marginBottom: 10 },
+  tipoLabel:    { fontSize: 12, color: TEXT, marginBottom: 4 },
+  tipoBarTrack: { height: 10, backgroundColor: DIVIDER, borderRadius: 5, overflow: 'hidden' },
+  tipoBarFill:  { height: '100%', borderRadius: 5, backgroundColor: BUTTON },
+
+  separador:       { height: 1, backgroundColor: DIVIDER, marginVertical: 12 },
+  subSectionTitle: { fontSize: 12, fontWeight: '700', color: TITULO, marginBottom: 8 },
+  alertaFila:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
+  alertaDot2:      { width: 10, height: 10, borderRadius: 5 },
+  alertaLabel:     { flex: 1, fontSize: 12, color: TEXT },
+  alertaTiempo:    { fontSize: 12, fontWeight: '600', color: TITULO },
+
+  sinDatos: { fontSize: 13, color: TEXT, fontStyle: 'italic', textAlign: 'center', paddingVertical: 8 },
+
+  barTrack: { flex: 1, height: 8, backgroundColor: DIVIDER, borderRadius: 4, overflow: 'hidden' },
+  barFill:  { height: '100%', borderRadius: 4 },
+
   fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    overflow: 'hidden',
+    position: 'absolute', bottom: 22, right: 20,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: BUTTON,
+    alignItems: 'center', justifyContent: 'center',
     elevation: 6,
-    shadowColor: PRIMARY,
+    shadowColor: BUTTON,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+    shadowOpacity: 0.45, shadowRadius: 8,
   },
-  fabIcon: { width: 60, height: 60 },
+  fabText: { color: '#fff', fontSize: 28, fontWeight: '300', lineHeight: 32 },
 });

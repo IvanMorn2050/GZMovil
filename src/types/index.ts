@@ -6,6 +6,8 @@ export interface Usuario {
   email: string;
   password: string;
   rol: RolUsuario;
+  fotoUrl?: string;
+  telefono?: string;
 }
 
 export type TipoDesastre =
@@ -46,11 +48,52 @@ export type AuthStackParamList = {
 export type RootStackParamList = {
   MainTabs: undefined;
   CreateReport: undefined;
+  ForoDetail: { id: number; titulo: string };
 };
 
 export type TabParamList = {
   Inicio: undefined;
   Foro: undefined;
+  Voluntario: undefined;
   Capacitaciones: undefined;
   Perfil: undefined;
 };
+
+export interface SolicitudVoluntario {
+  id: number;
+  titulo: string;
+  descripcion: string;
+  direccion_texto: string | null;
+  latitud: number | null;
+  longitud: number | null;
+  prioridad: string;
+  creado_en: string;
+  tipo_desastre: string;
+  emoji: string;
+  reportado_por: string;
+  distancia_km: number | null;
+  voluntarios_asignados: number;
+}
+
+export interface AsignacionVoluntario {
+  id: number;
+  estado: 'Pendiente' | 'En_camino' | 'Atendiendo' | 'Finalizada';
+  creado_en: string;
+  actualizado_en: string;
+  reporte_id: number;
+  titulo: string;
+  descripcion: string;
+  direccion_texto: string | null;
+  prioridad: string;
+  latitud: number | null;
+  longitud: number | null;
+  tipo_desastre: string;
+  emoji: string;
+}
+
+export interface EvidenciaAsignacion {
+  id: number;
+  contenido: string | null;
+  foto_url: string | null;
+  creado_en: string;
+}
