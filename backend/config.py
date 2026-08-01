@@ -13,11 +13,8 @@ class Config:
     SECRET_KEY       = os.getenv('SECRET_KEY', 'cambia_esto_en_produccion')
     JWT_EXPIRATION_H = 24
 
-    MAIL_SERVER         = 'smtp.gmail.com'
-    MAIL_PORT           = 587
-    MAIL_USE_TLS        = True
-    MAIL_USERNAME       = os.getenv('MAIL_USERNAME')
-    MAIL_PASSWORD       = os.getenv('MAIL_PASSWORD')
-    MAIL_DEFAULT_SENDER = os.getenv('MAIL_USERNAME')
+    BREVO_API_KEY  = os.getenv('BREVO_API_KEY')
+    MAIL_USERNAME  = os.getenv('MAIL_USERNAME')
+    MAIL_SENDER_NOMBRE = 'Guardian Zero'
 
     SERVER_URL = os.getenv('SERVER_URL', 'http://localhost:5000')

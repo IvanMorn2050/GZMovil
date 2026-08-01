@@ -1,7 +1,7 @@
 import os
 from flask import Flask, send_from_directory
 from config import Config
-from extensions import mail, cors
+from extensions import cors
 from routes.auth import auth_bp
 from routes.reportes import reportes_bp
 from routes.capacitaciones import capacitaciones_bp
@@ -19,7 +19,6 @@ def create_app():
     app.config.from_object(Config)
 
     cors.init_app(app, resources={r'/api/*': {'origins': '*'}})
-    mail.init_app(app)
 
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 

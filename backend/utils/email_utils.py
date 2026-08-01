@@ -1,7 +1,8 @@
+import requests
 from itsdangerous import URLSafeTimedSerializer
 from flask import current_app
-from flask_mail import Message
-from extensions import mail
+
+BREVO_URL = 'https://api.brevo.com/v3/smtp/email'
 
 
 def _s():
@@ -45,9 +46,19 @@ def enviar_correo_verificacion(email: str, nombre: str):
       </p>
     </div>
     """
-    msg = Message(
-        subject='Activa tu cuenta — Guardian Zero',
-        recipients=[email],
-        html=html,
-    )
-    mail.send(msg)
+    payload = {
+        'sender': {
+            'name': current_app.config['MAIL_SENDER_NOMBRE'],
+            'email': current_app.config['MAIL_USERNAME'],
+        },
+        'to': [{'email': email, 'name': nombre}],
+        'subject': 'Activa tu cuenta — Guardian Zero',
+        'htmlContent': html,
+    }
+    headers = {
+        'api-key': current_app.config['BREVO_API_KEY'],
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+    }
+    resp = requests.post(BREVO_URL, json=payload, headers=headers, timeout=15)
+    resp.raise_for_status()
