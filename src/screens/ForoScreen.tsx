@@ -72,6 +72,10 @@ export default function ForoScreen() {
   const [cargando, setCargando]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Buscador / filtro
+  const [busqueda, setBusqueda]           = useState('');
+  const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
+
   // Modal crear / editar
   const [modalVisible, setModalVisible] = useState(false);
   const [editTarget, setEditTarget]     = useState<Publicacion | null>(null);
@@ -189,6 +193,12 @@ export default function ForoScreen() {
 
   const esAutor = (pub: Publicacion) => String(pub.id_autor_usuario) === usuario?.id;
 
+  const pubsFiltradas = pubs.filter((pub) => {
+    const coincideTexto = pub.titulo.toLowerCase().includes(busqueda.trim().toLowerCase());
+    const coincideCategoria = categoriaFiltro === 'Todas' || pub.categoria === categoriaFiltro;
+    return coincideTexto && coincideCategoria;
+  });
+
   return (
     <View style={s.root}>
 
@@ -214,11 +224,44 @@ export default function ForoScreen() {
             <Text style={s.sectionText}>Publicaciones Recientes</Text>
           </View>
 
+          {/* Buscador */}
+          <TextInput
+            style={s.buscador}
+            value={busqueda}
+            onChangeText={setBusqueda}
+            placeholder="Buscar por título..."
+            placeholderTextColor="#B0B8BC"
+          />
+
+          {/* Filtro por categoría */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filtroScroll}>
+            <View style={s.filtroRow}>
+              {['Todas', ...CATEGORIAS].map((c) => {
+                const activo = categoriaFiltro === c;
+                const color = c === 'Todas' ? BUTTON : (CAT_COLOR[c] ?? BUTTON);
+                return (
+                  <TouchableOpacity
+                    key={c}
+                    style={[s.catChip, activo && { backgroundColor: color + '22', borderColor: color }]}
+                    onPress={() => setCategoriaFiltro(c)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[s.catChipText, activo && { color }]}>{c}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+
           {pubs.length === 0 && (
             <Text style={s.sinDatos}>Aún no hay publicaciones. ¡Sé el primero!</Text>
           )}
 
-          {pubs.map((pub) => {
+          {pubs.length > 0 && pubsFiltradas.length === 0 && (
+            <Text style={s.sinDatos}>No hay publicaciones que coincidan con tu búsqueda.</Text>
+          )}
+
+          {pubsFiltradas.map((pub) => {
             const color = CAT_COLOR[pub.categoria] ?? CAT_COLOR.General;
             return (
               <View key={pub.id} style={s.pubCard}>
@@ -401,6 +444,20 @@ const s = StyleSheet.create({
   sectionRow:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 4 },
   sectionAccent: { width: 3, height: 18, backgroundColor: BUTTON, borderRadius: 2 },
   sectionText:   { fontSize: 15, fontWeight: '700', color: TITULO },
+
+  buscador: {
+    borderWidth: 1,
+    borderColor: DIVIDER,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: TITULO,
+    backgroundColor: '#fff',
+    marginBottom: 10,
+  },
+  filtroScroll: { marginBottom: 14 },
+  filtroRow:    { flexDirection: 'row', gap: 8 },
 
   pubCard: {
     backgroundColor: '#fff',

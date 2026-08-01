@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -10,8 +10,17 @@ import {
   View,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
+import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import { getHomeStatsApi } from '../services/authService';
+
+// Querétaro capital — se usa solo como respaldo si no hay permiso/ubicación GPS
+const REGION_DEFAULT = {
+  latitude:      20.5888,
+  longitude:    -100.3899,
+  latitudeDelta:  0.08,
+  longitudeDelta: 0.08,
+};
 
 const TITULO  = '#0E3A44';
 const BUTTON  = '#1AA6A6';
@@ -98,6 +107,7 @@ function Barra({ pct, color }: { pct: number; color: string }) {
 
 export default function HomeScreen() {
   const nav = useNavigation<any>();
+  const mapRef = useRef<MapView>(null);
   const [stats,     setStats]     = useState<HomeStats>(DEFAULT_STATS);
   const [cargando,  setCargando]  = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -116,6 +126,25 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  // Centra el mapa en la ubicación aproximada del usuario al abrir la pantalla
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      try {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        mapRef.current?.animateToRegion({
+          latitude:      pos.coords.latitude,
+          longitude:     pos.coords.longitude,
+          latitudeDelta:  0.08,
+          longitudeDelta: 0.08,
+        }, 600);
+      } catch {
+        // se queda con la región por defecto (Querétaro)
+      }
+    })();
+  }, []);
 
   const onRefresh = () => { setRefreshing(true); cargar(true); };
 
@@ -136,19 +165,19 @@ export default function HomeScreen() {
       >
         {/* ── Mapa ── */}
         <Card>
-          <SectionTitle text="Mapa de Incidentes — Querétaro" />
+          <SectionTitle text="Mapa de Incidentes Cercanos" />
           <View style={s.mapRow}>
             <View style={s.mapWrapper}>
               <MapView
+                ref={mapRef}
                 style={StyleSheet.absoluteFillObject}
-                initialRegion={{
-                  latitude:      20.5888,
-                  longitude:    -100.3899,
-                  latitudeDelta:  1.4,
-                  longitudeDelta: 1.2,
-                }}
-                scrollEnabled={false}
-                zoomEnabled={false}
+                initialRegion={REGION_DEFAULT}
+                showsUserLocation
+                showsMyLocationButton
+                scrollEnabled
+                zoomEnabled
+                pitchEnabled={false}
+                rotateEnabled={false}
               >
                 {stats.marcadores.map((m, i) => (
                   <Marker
@@ -307,7 +336,7 @@ const s = StyleSheet.create({
   sectionTitleText:  { fontSize: 14, fontWeight: '700', color: TITULO },
 
   mapRow:    { flexDirection: 'row', gap: 12 },
-  mapWrapper: { flex: 1, height: 190, borderRadius: 10, overflow: 'hidden' },
+  mapWrapper: { flex: 1, height: 260, borderRadius: 10, overflow: 'hidden' },
   markerBubble: {
     backgroundColor: '#fff',
     borderRadius: 12,

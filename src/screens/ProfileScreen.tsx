@@ -14,8 +14,13 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../hooks/useAuth';
-import { getPerfilApi, updatePerfilApi, uploadFotoApi, postulacionApi } from '../services/authService';
+import {
+  getPerfilApi, updatePerfilApi, uploadFotoApi, postulacionApi,
+  getCertificacionesApi, uploadCertificacionApi, deleteCertificacionApi,
+  Certificacion,
+} from '../services/authService';
 
 const TITULO  = '#0E3A44';
 const BUTTON  = '#1AA6A6';
@@ -64,8 +69,13 @@ export default function ProfileScreen() {
 
   // ── Formulario edición ────────────────────────────────────────────
   const [editNombre, setEditNombre]   = useState(usuario?.nombre ?? '');
+  const [editEmail, setEditEmail]     = useState(usuario?.email ?? '');
   const [editTelefono, setEditTel]    = useState(usuario?.telefono ?? '');
   const [savingEdit, setSavingEdit]   = useState(false);
+
+  // ── Certificaciones ───────────────────────────────────────────────
+  const [certificaciones, setCertificaciones] = useState<Certificacion[]>([]);
+  const [subiendoCert, setSubiendoCert]       = useState(false);
 
   // ── Formulario postulación ────────────────────────────────────────
   const [postRol, setPostRol]       = useState<'Voluntario' | 'Especialista'>('Voluntario');
@@ -92,6 +102,10 @@ export default function ProfileScreen() {
       })
       .catch(() => {})
       .finally(() => setCargando(false));
+
+    getCertificacionesApi()
+      .then((data) => setCertificaciones(data.certificaciones ?? []))
+      .catch(() => {});
   }, []);
 
   const rolInfo      = ROL_INFO[usuario?.rol ?? 'ciudadano'];
@@ -112,18 +126,64 @@ export default function ProfileScreen() {
       Alert.alert('Campo requerido', 'El nombre no puede estar vacío.');
       return;
     }
+    if (!editEmail.trim()) {
+      Alert.alert('Campo requerido', 'El email no puede estar vacío.');
+      return;
+    }
     setSavingEdit(true);
     try {
-      await updatePerfilApi(editNombre.trim(), editTelefono.trim() || undefined);
-      actualizarUsuario({ nombre: editNombre.trim(), telefono: editTelefono.trim() || undefined });
+      const res = await updatePerfilApi(editNombre.trim(), editEmail.trim().toLowerCase(), editTelefono.trim() || undefined);
       setTelefono(editTelefono.trim());
       setEditVisible(false);
-      Alert.alert('¡Listo!', 'Tu perfil fue actualizado correctamente.');
+
+      if (res.requiere_verificacion) {
+        Alert.alert(
+          '¡Listo! Verifica tu nuevo correo 📧',
+          'Te enviamos un correo para verificar tu nuevo email. Debes verificarlo antes de volver a iniciar sesión.',
+          [{ text: 'Entendido', onPress: () => logout() }],
+        );
+      } else {
+        actualizarUsuario({ nombre: editNombre.trim(), telefono: editTelefono.trim() || undefined });
+        Alert.alert('¡Listo!', 'Tu perfil fue actualizado correctamente.');
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message || 'No se pudo actualizar el perfil.');
     } finally {
       setSavingEdit(false);
     }
+  };
+
+  const handlePickCertificacion = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    setSubiendoCert(true);
+    try {
+      const asset = result.assets[0];
+      const nuevo = await uploadCertificacionApi(asset.uri, asset.name ?? 'certificado.pdf');
+      setCertificaciones((prev) => [nuevo, ...prev]);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'No se pudo subir el certificado.');
+    } finally {
+      setSubiendoCert(false);
+    }
+  };
+
+  const handleEliminarCert = (cert: Certificacion) => {
+    Alert.alert('Eliminar certificado', `¿Eliminar "${cert.nombre_archivo}"?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar', style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteCertificacionApi(cert.id);
+            setCertificaciones((prev) => prev.filter((c) => c.id !== cert.id));
+          } catch (e: any) {
+            Alert.alert('Error', e.message || 'No se pudo eliminar el certificado.');
+          }
+        },
+      },
+    ]);
   };
 
   const handlePickFoto = async () => {
@@ -220,6 +280,7 @@ export default function ProfileScreen() {
             style={s.editBtn}
             onPress={() => {
               setEditNombre(usuario?.nombre ?? '');
+              setEditEmail(usuario?.email ?? '');
               setEditTel(telefono);
               setEditVisible(true);
             }}
@@ -309,6 +370,40 @@ export default function ProfileScreen() {
           ))}
         </View>
 
+        {/* ── Certificaciones ── */}
+        <View style={s.card}>
+          <View style={s.sectionRow}>
+            <View style={s.sectionAccent} />
+            <Text style={s.sectionText}>📄  Mis Certificaciones</Text>
+          </View>
+
+          {certificaciones.length === 0 && (
+            <Text style={s.postDesc}>Aún no has subido certificados de cursos terminados.</Text>
+          )}
+
+          {certificaciones.map((cert) => (
+            <View key={cert.id} style={s.certFila}>
+              <Text style={s.certIcono}>📄</Text>
+              <Text style={s.certNombre} numberOfLines={1}>{cert.nombre_archivo}</Text>
+              <TouchableOpacity onPress={() => handleEliminarCert(cert)} style={s.certDeleteBtn} activeOpacity={0.7}>
+                <Text style={s.certDeleteText}>🗑️</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          <TouchableOpacity
+            style={s.pickCertBtn}
+            onPress={handlePickCertificacion}
+            disabled={subiendoCert}
+            activeOpacity={0.8}
+          >
+            {subiendoCert
+              ? <ActivityIndicator color={BUTTON} size="small" />
+              : <Text style={s.pickCertText}>📎  Subir certificado (PDF)</Text>
+            }
+          </TouchableOpacity>
+        </View>
+
         {/* ── Cerrar sesión ── */}
         <TouchableOpacity style={s.logoutBtn} onPress={handleLogout} activeOpacity={0.85}>
           <Text style={s.logoutText}>Cerrar Sesión</Text>
@@ -330,6 +425,17 @@ export default function ProfileScreen() {
               placeholder="Tu nombre"
               placeholderTextColor="#B0B8BC"
               maxLength={80}
+            />
+
+            <Text style={s.inputLabel}>Correo electrónico</Text>
+            <TextInput
+              style={s.input}
+              value={editEmail}
+              onChangeText={setEditEmail}
+              placeholder="correo@ejemplo.com"
+              placeholderTextColor="#B0B8BC"
+              keyboardType="email-address"
+              autoCapitalize="none"
             />
 
             <Text style={s.inputLabel}>Teléfono (opcional)</Text>
@@ -512,6 +618,25 @@ const s = StyleSheet.create({
   checkCircle:   { width: 22, height: 22, borderRadius: 11, backgroundColor: BUTTON + '22', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkIcon:     { fontSize: 12, color: BUTTON, fontWeight: '700' },
   permisoTexto:  { flex: 1, fontSize: 13, color: TEXT, lineHeight: 20 },
+
+  certFila: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: DIVIDER,
+  },
+  certIcono:  { fontSize: 16 },
+  certNombre: { flex: 1, fontSize: 13, color: TITULO },
+  certDeleteBtn:  { padding: 4 },
+  certDeleteText: { fontSize: 15 },
+  pickCertBtn: {
+    borderWidth: 1.5,
+    borderColor: BUTTON,
+    borderStyle: 'dashed',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  pickCertText: { fontSize: 13, fontWeight: '600', color: BUTTON },
 
   logoutBtn: {
     backgroundColor: '#E74C3C',

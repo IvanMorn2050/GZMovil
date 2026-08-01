@@ -32,10 +32,10 @@ export function getPerfilApi() {
   return apiFetch<any>('/api/perfil', { auth: true });
 }
 
-export function updatePerfilApi(nombre: string, telefono?: string) {
-  return apiFetch<{ message: string }>('/api/perfil', {
+export function updatePerfilApi(nombre: string, email: string, telefono?: string) {
+  return apiFetch<{ message: string; requiere_verificacion: boolean }>('/api/perfil', {
     method: 'PUT',
-    body:   { nombre, telefono: telefono || null },
+    body:   { nombre, email, telefono: telefono || null },
     auth:   true,
   });
 }
@@ -119,4 +119,27 @@ export async function uploadFotoApi(uri: string): Promise<{ foto_url: string }> 
   formData.append('foto', { uri, name: filename, type: mimeType } as any);
 
   return apiFetchMultipart<{ foto_url: string }>('/api/perfil/foto', formData);
+}
+
+// ── Certificaciones ──────────────────────────────────────────────────
+
+export interface Certificacion {
+  id: number;
+  nombre_archivo: string;
+  archivo_url: string;
+  creado_en: string;
+}
+
+export function getCertificacionesApi() {
+  return apiFetch<{ certificaciones: Certificacion[] }>('/api/perfil/certificaciones', { auth: true });
+}
+
+export async function uploadCertificacionApi(uri: string, nombreOriginal: string): Promise<Certificacion> {
+  const formData = new FormData();
+  formData.append('archivo', { uri, name: nombreOriginal, type: 'application/pdf' } as any);
+  return apiFetchMultipart<Certificacion>('/api/perfil/certificaciones', formData);
+}
+
+export function deleteCertificacionApi(id: number) {
+  return apiFetch<{ message: string }>(`/api/perfil/certificaciones/${id}`, { method: 'DELETE', auth: true });
 }

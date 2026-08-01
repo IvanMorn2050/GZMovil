@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,43 +19,43 @@ const TEXT    = '#6B7C85';
 const CURSOS = [
   {
     id: '1',
-    nombre: 'Soporte Básico: RCP',
-    desc: 'Aprende las técnicas fundamentales de reanimación cardiopulmonar para responder en situaciones críticas.',
+    nombre: 'Cruz Roja Mexicana — Delegación Querétaro',
+    desc: 'Cursos y talleres de primeros auxilios, RCP y atención prehospitalaria impartidos por la Cruz Roja Mexicana.',
     proveedor: 'Cruz Roja Mexicana',
-    nivel: 'Básico',
-    duracion: '6 hrs',
-    progreso: 0.72,
-    imagen: require('../../assets/capa1.jpg'),
+    url: 'https://www.cruzrojamexicana.org.mx/?sedeId=33',
+    imagen: require('../../assets/CruzRoja.jpg'),
   },
   {
     id: '2',
-    nombre: 'Rescate en Estructuras Colapsadas',
-    desc: 'Formación técnica y operativa para voluntarios que intervienen en derrumbes y colapsos estructurales.',
-    proveedor: 'Protección Civil',
-    nivel: 'Intermedio',
-    duracion: '16 hrs',
-    progreso: 0.44,
-    imagen: require('../../assets/Rescate1.jpg'),
-  },
-  {
-    id: '3',
-    nombre: 'Primeros Auxilios Avanzados',
-    desc: 'Curso profundo para el manejo de situaciones médicas críticas en campo durante emergencias.',
-    proveedor: 'Cruz Roja Mexicana',
-    nivel: 'Avanzado',
-    duracion: '10 hrs',
-    progreso: 0.22,
+    nombre: 'Taller de Primeros Auxilios',
+    desc: 'Taller de primeros auxilios impartido por la Facultad de Estudios Superiores (FENO), UNAM.',
+    proveedor: 'FENO — UNAM',
+    url: 'https://share.google/6B8XLCuLNnh4qtLS6',
     imagen: require('../../assets/capa1.jpg'),
   },
   {
+    id: '3',
+    nombre: 'Consultores CMC',
+    desc: 'Consultoría y capacitación especializada en protección civil y gestión de riesgos.',
+    proveedor: 'Consultores CMC',
+    url: 'https://consultorescmc.com/',
+    imagen: require('../../assets/Proteccion_Civil.jpg'),
+  },
+  {
     id: '4',
-    nombre: 'Búsqueda y Rescate Urbano',
-    desc: 'Habilidades esenciales para equipos de primera respuesta en entornos urbanos afectados.',
-    proveedor: 'Protección Civil',
-    nivel: 'Intermedio',
-    duracion: '20 hrs',
-    progreso: 0.12,
+    nombre: 'Cursos de Protección Civil',
+    desc: 'Plataforma de cursos en línea sobre protección civil, prevención de riesgos y manejo de emergencias.',
+    proveedor: 'cursosdeproteccioncivil.com',
+    url: 'https://cursosdeproteccioncivil.com',
     imagen: require('../../assets/Rescate1.jpg'),
+  },
+  {
+    id: '5',
+    nombre: 'Preparados.gob.mx',
+    desc: 'Portal oficial del Gobierno de México con guías y recursos para la preparación ante emergencias y desastres.',
+    proveedor: 'Gobierno de México',
+    url: 'https://preparados.gob.mx/',
+    imagen: require('../../assets/Pagina_P.jpg'),
   },
 ];
 
@@ -124,26 +125,12 @@ const PROXIMAS = [
   },
 ];
 
-const NIVEL_COLOR: Record<string, string> = {
-  Básico: '#27AE60',
-  Intermedio: '#E67E22',
-  Avanzado: '#E74C3C',
-};
-
 /* ── Sub-componentes ────────────────────── */
 function SectionTitle({ text }: { text: string }) {
   return (
     <View style={s.sectionRow}>
       <View style={s.sectionAccent} />
       <Text style={s.sectionText}>{text}</Text>
-    </View>
-  );
-}
-
-function BarraProgreso({ pct }: { pct: number }) {
-  return (
-    <View style={s.progTrack}>
-      <View style={[s.progFill, { width: `${Math.round(pct * 100)}%` as any }]} />
     </View>
   );
 }
@@ -174,16 +161,6 @@ export default function CapacitacionesScreen() {
 
             {/* Cuerpo de la tarjeta */}
             <View style={s.cursoCuerpo}>
-              {/* Badges */}
-              <View style={s.badgesRow}>
-                <View style={[s.badge, { backgroundColor: NIVEL_COLOR[curso.nivel] + '22' }]}>
-                  <Text style={[s.badgeText, { color: NIVEL_COLOR[curso.nivel] }]}>{curso.nivel}</Text>
-                </View>
-                <View style={[s.badge, { backgroundColor: BUTTON + '18' }]}>
-                  <Text style={[s.badgeText, { color: BUTTON }]}>⏱ {curso.duracion}</Text>
-                </View>
-              </View>
-
               {/* Título */}
               <Text style={s.cursoNombre}>{curso.nombre}</Text>
               <Text style={s.cursoDesc}>{curso.desc}</Text>
@@ -191,14 +168,12 @@ export default function CapacitacionesScreen() {
               {/* Proveedor */}
               <Text style={s.cursoProveedor}>{curso.proveedor}</Text>
 
-              {/* Progreso */}
-              <View style={s.progresoRow}>
-                <BarraProgreso pct={curso.progreso} />
-                <Text style={s.progresoTexto}>{Math.round(curso.progreso * 100)}%</Text>
-              </View>
-
               {/* Botón */}
-              <TouchableOpacity style={s.verBtn} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={s.verBtn}
+                activeOpacity={0.8}
+                onPress={() => Linking.openURL(curso.url)}
+              >
                 <Text style={s.verBtnText}>Ver Curso</Text>
               </TouchableOpacity>
             </View>
@@ -302,22 +277,9 @@ const s = StyleSheet.create({
     height: 160,
   },
   cursoCuerpo: { padding: 14 },
-  badgesRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
-  badgeText: { fontSize: 11, fontWeight: '700' },
   cursoNombre: { fontSize: 15, fontWeight: '700', color: TITULO, marginBottom: 6 },
   cursoDesc: { fontSize: 13, color: TEXT, lineHeight: 19, marginBottom: 8 },
   cursoProveedor: { fontSize: 11, color: BUTTON, fontWeight: '600', marginBottom: 10 },
-  progresoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  progTrack: {
-    flex: 1,
-    height: 6,
-    backgroundColor: DIVIDER,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progFill: { height: '100%', backgroundColor: BUTTON, borderRadius: 3 },
-  progresoTexto: { fontSize: 12, fontWeight: '700', color: TITULO, width: 36, textAlign: 'right' },
   verBtn: {
     backgroundColor: BUTTON,
     borderRadius: 8,
