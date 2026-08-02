@@ -17,6 +17,21 @@ function apiEstatus(e: string): Reporte['estado'] {
   return 'Activo';
 }
 
+export interface MiReporte {
+  id: number;
+  titulo: string;
+  estatus: 'Pendiente' | 'En_Proceso' | 'Finalizado';
+  prioridad: string;
+  creado_en: string;
+  tipo_desastre: string | null;
+  emoji: string | null;
+}
+
+export async function getMisReportes(): Promise<MiReporte[]> {
+  const d = await apiFetch<{ reportes: MiReporte[] }>('/api/reportes/mis-reportes', { auth: true });
+  return d.reportes;
+}
+
 export async function getReportes(): Promise<Reporte[]> {
   const data = await apiFetch<{ reportes: any[] }>('/api/reportes', { auth: true });
   return data.reportes.map((r) => ({

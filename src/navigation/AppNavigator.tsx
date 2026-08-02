@@ -17,6 +17,8 @@ import ForoScreen from '../screens/ForoScreen';
 import ForoDetailScreen from '../screens/ForoDetailScreen';
 import CapacitacionesScreen from '../screens/CapacitacionesScreen';
 import VoluntarioScreen from '../screens/VoluntarioScreen';
+import MisReportesScreen from '../screens/MisReportesScreen';
+import RegistroOcurrenciasScreen from '../screens/RegistroOcurrenciasScreen';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -137,6 +139,16 @@ function AppNavigator() {
       <RootStack.Screen
         name="ForoDetail"
         component={ForoDetailScreen}
+        options={{ animation: 'slide_from_right' }}
+      />
+      <RootStack.Screen
+        name="MisReportes"
+        component={MisReportesScreen}
+        options={{ animation: 'slide_from_right' }}
+      />
+      <RootStack.Screen
+        name="RegistroOcurrencias"
+        component={RegistroOcurrenciasScreen}
         options={{ animation: 'slide_from_right' }}
       />
     </RootStack.Navigator>

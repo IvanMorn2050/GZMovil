@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../hooks/useAuth';
 import {
   getPerfilApi, updatePerfilApi, uploadFotoApi, postulacionApi,
@@ -34,10 +35,24 @@ const ROL_INFO: Record<string, { label: string; emoji: string; color: string }> 
   coordinador: { label: 'Coordinador', emoji: '⭐', color: '#F39C12' },
 };
 
-const PERMISOS: Record<string, string[]> = {
-  voluntario:  ['Ver y atender reportes de desastres activos', 'Registrarte como voluntario en emergencias', 'Crear reportes de nuevas ocurrencias'],
-  coordinador: ['Coordinar equipos de respuesta', 'Atender y gestionar reportes activos', 'Crear reportes de nuevas ocurrencias'],
-  ciudadano:   ['Reportar desastres naturales en tu zona', 'Ver el estado de tus reportes enviados', 'Consultar el registro de ocurrencias'],
+interface PermisoItem { texto: string; screen?: 'MisReportes' | 'RegistroOcurrencias' }
+
+const PERMISOS: Record<string, PermisoItem[]> = {
+  voluntario:  [
+    { texto: 'Ver y atender reportes de desastres activos' },
+    { texto: 'Registrarte como voluntario en emergencias' },
+    { texto: 'Crear reportes de nuevas ocurrencias' },
+  ],
+  coordinador: [
+    { texto: 'Coordinar equipos de respuesta' },
+    { texto: 'Atender y gestionar reportes activos' },
+    { texto: 'Crear reportes de nuevas ocurrencias' },
+  ],
+  ciudadano:   [
+    { texto: 'Reportar desastres naturales en tu zona' },
+    { texto: 'Ver el estado de tus reportes enviados', screen: 'MisReportes' },
+    { texto: 'Consultar el registro de ocurrencias', screen: 'RegistroOcurrencias' },
+  ],
 };
 
 interface Postulacion {
@@ -54,6 +69,7 @@ const ESTADO_POST_COLOR: Record<string, string> = {
 };
 
 export default function ProfileScreen() {
+  const nav = useNavigation<any>();
   const { usuario, logout, actualizarUsuario } = useAuth();
 
   // ── Estado del perfil ─────────────────────────────────────────────
@@ -360,14 +376,22 @@ export default function ProfileScreen() {
             <View style={s.sectionAccent} />
             <Text style={s.sectionText}>{rolInfo.emoji}  ¿Qué puedo hacer?</Text>
           </View>
-          {permisos.map((p, i) => (
-            <View key={i} style={[s.permisoFila, i < permisos.length - 1 && s.permisoDivider]}>
-              <View style={s.checkCircle}>
-                <Text style={s.checkIcon}>✓</Text>
-              </View>
-              <Text style={s.permisoTexto}>{p}</Text>
-            </View>
-          ))}
+          {permisos.map((p, i) => {
+            const Wrapper = p.screen ? TouchableOpacity : View;
+            return (
+              <Wrapper
+                key={i}
+                style={[s.permisoFila, i < permisos.length - 1 && s.permisoDivider]}
+                {...(p.screen ? { onPress: () => nav.navigate(p.screen), activeOpacity: 0.7 } : {})}
+              >
+                <View style={s.checkCircle}>
+                  <Text style={s.checkIcon}>✓</Text>
+                </View>
+                <Text style={s.permisoTexto}>{p.texto}</Text>
+                {p.screen && <Text style={s.permisoChevron}>›</Text>}
+              </Wrapper>
+            );
+          })}
         </View>
 
         {/* ── Certificaciones ── */}
@@ -618,6 +642,7 @@ const s = StyleSheet.create({
   checkCircle:   { width: 22, height: 22, borderRadius: 11, backgroundColor: BUTTON + '22', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkIcon:     { fontSize: 12, color: BUTTON, fontWeight: '700' },
   permisoTexto:  { flex: 1, fontSize: 13, color: TEXT, lineHeight: 20 },
+  permisoChevron:{ fontSize: 18, color: BUTTON, fontWeight: '700', marginLeft: 4 },
 
   certFila: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

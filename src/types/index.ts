@@ -49,6 +49,8 @@ export type RootStackParamList = {
   MainTabs: undefined;
   CreateReport: undefined;
   ForoDetail: { id: number; titulo: string };
+  MisReportes: undefined;
+  RegistroOcurrencias: undefined;
 };
 
 export type TabParamList = {
