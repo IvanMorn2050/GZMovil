@@ -49,7 +49,7 @@ export default function RegisterScreen() {
       return;
     }
     if (password !== confirmar) { Alert.alert('Error', 'Las contraseñas no coinciden.'); return; }
-    if (password.length < 4)   { Alert.alert('Error', 'Mínimo 4 caracteres.'); return; }
+    if (password.length < 8)   { Alert.alert('Error', 'Mínimo 8 caracteres.'); return; }
 
     setEnviando(true);
     const res = await register(nombre.trim(), email.trim().toLowerCase(), password, rol);
@@ -139,7 +139,7 @@ export default function RegisterScreen() {
           <View style={s.inputRow}>
             <TextInput
               style={[s.input, s.inputFlex]}
-              placeholder="Mínimo 4 caracteres"
+              placeholder="Mínimo 8 caracteres"
               placeholderTextColor="#B0B8BC"
               secureTextEntry={!verPass}
               value={password}

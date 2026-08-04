@@ -2,6 +2,7 @@ import traceback
 from flask import Blueprint, request, jsonify
 import bcrypt
 from database import get_db
+from extensions import limiter
 from utils.auth_utils import generar_jwt
 from utils.email_utils import enviar_correo_verificacion, verificar_token_email
 
@@ -33,8 +34,8 @@ def registro():
 
     if not nombre or not email or not contrasena:
         return jsonify({'error': 'Nombre, email y contraseña son requeridos'}), 400
-    if len(contrasena) < 4:
-        return jsonify({'error': 'La contraseña debe tener al menos 4 caracteres'}), 400
+    if len(contrasena) < 8:
+        return jsonify({'error': 'La contraseña debe tener al menos 8 caracteres'}), 400
     # Nadie se auto-asigna Voluntario/Especialista/Administrador al registrarse:
     # Voluntario y Especialista quedan como Civil + una postulación pendiente de
     # revisión por un administrador; Administrador nunca es auto-asignable.
@@ -95,6 +96,7 @@ def registro():
 
 # ── Login ─────────────────────────────────────────────────────────────
 @auth_bp.route('/login', methods=['POST'])
+@limiter.limit('5 per minute')
 def login():
     d          = request.get_json(silent=True) or {}
     email      = (d.get('email') or '').strip().lower()

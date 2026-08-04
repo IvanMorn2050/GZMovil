@@ -2,7 +2,7 @@ import os
 from flask import Flask, send_from_directory
 from prometheus_flask_exporter import PrometheusMetrics
 from config import Config
-from extensions import cors
+from extensions import cors, limiter
 from routes.auth import auth_bp
 from routes.reportes import reportes_bp
 from routes.capacitaciones import capacitaciones_bp
@@ -21,6 +21,7 @@ def create_app():
     app.config.from_object(Config)
 
     cors.init_app(app, resources={r'/api/*': {'origins': '*'}})
+    limiter.init_app(app)
 
     # Expone /metrics en formato Prometheus (requests por endpoint, latencia,
     # codigos de estado, mas metricas de proceso como CPU/memoria).

@@ -10,7 +10,13 @@ class Config:
     DB_NAME     = os.getenv('DB_NAME', 'guardian_zero3')
     DB_PORT     = int(os.getenv('DB_PORT', 3306))
 
-    SECRET_KEY       = os.getenv('SECRET_KEY', 'cambia_esto_en_produccion')
+    SECRET_KEY = os.getenv('SECRET_KEY')
+    if not SECRET_KEY:
+        raise RuntimeError(
+            'SECRET_KEY no está configurada. Define la variable de entorno '
+            'SECRET_KEY antes de iniciar la aplicación (nunca uses un valor '
+            'por defecto: se usa para firmar los tokens de sesión).'
+        )
     JWT_EXPIRATION_H = 24
 
     BREVO_API_KEY  = os.getenv('BREVO_API_KEY')
