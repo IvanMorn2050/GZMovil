@@ -125,8 +125,6 @@ export default function LoginScreen() {
             <Text style={s.link}>Regístrate aquí</Text>
           </TouchableOpacity>
         </View>
-
-        <Text style={s.hint}>Demo: admin@guardianzero.com / 1234</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -214,5 +212,4 @@ const s = StyleSheet.create({
   linkRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 14 },
   linkText: { color: TEXT, fontSize: 14 },
   link: { color: BUTTON, fontSize: 14, fontWeight: '700' },
-  hint: { textAlign: 'center', color: '#B0B8BC', fontSize: 12 },
 });

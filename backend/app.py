@@ -1,5 +1,5 @@
 import os
-from flask import Flask, send_from_directory
+from flask import Flask, jsonify, send_from_directory
 from prometheus_flask_exporter import PrometheusMetrics
 from config import Config
 from extensions import cors, limiter
@@ -42,6 +42,10 @@ def create_app():
     @app.route('/uploads/<path:filename>')
     def serve_upload(filename):
         return send_from_directory(UPLOAD_FOLDER, filename)
+
+    @app.errorhandler(429)
+    def demasiados_intentos(e):
+        return jsonify({'error': 'Demasiados intentos. Espera un minuto e intenta de nuevo.'}), 429
 
     return app
 
