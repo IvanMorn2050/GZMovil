@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, ReactNode } from 'react';
 import { Usuario, RolUsuario } from '../types';
 import { loginApi, registerApi, getPerfilApi } from '../services/authService';
 import { saveToken, clearToken, getToken } from '../services/api';
@@ -13,6 +13,7 @@ interface AuthContextType {
   logout:           () => Promise<void>;
   register:         (nombre: string, email: string, password: string, rol: RolUsuario) => Promise<RegisterResult>;
   actualizarUsuario:(datos: Partial<Pick<Usuario, 'nombre' | 'fotoUrl' | 'telefono'>>) => void;
+  refrescarUsuario: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -71,8 +72,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(prev => prev ? { ...prev, ...datos } : prev);
   };
 
+  // Vuelve a pedir el perfil al backend y sincroniza el rol (por si un admin
+  // acaba de aprobar una postulación: el token sigue vigente pero el rol
+  // guardado en el estado local queda obsoleto hasta que se refresca así).
+  const refrescarUsuario = useCallback(async () => {
+    try {
+      const p = await getPerfilApi();
+      setUsuario(mapUsuario(p));
+    } catch {
+      // silencioso: si falla, se conserva el usuario actual
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ usuario, cargando, login, logout, register, actualizarUsuario }}>
+    <AuthContext.Provider value={{ usuario, cargando, login, logout, register, actualizarUsuario, refrescarUsuario }}>
       {children}
     </AuthContext.Provider>
   );

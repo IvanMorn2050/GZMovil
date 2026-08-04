@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   Linking,
   ScrollView,
@@ -8,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { getCapacitaciones, inscribirse } from '../services/capacitacionesService';
 
 const TITULO  = '#0E3A44';
 const BUTTON  = '#1AA6A6';
@@ -125,6 +128,19 @@ const PROXIMAS = [
   },
 ];
 
+interface CursoDb {
+  id: number;
+  titulo: string;
+  descripcion: string;
+  nivel: string | null;
+  duracion_horas: number | null;
+  imagen_url: string | null;
+  modalidad: string | null;
+  estatus: string;
+  cupo_maximo: number | null;
+  organizacion: string | null;
+}
+
 /* ── Sub-componentes ────────────────────── */
 function SectionTitle({ text }: { text: string }) {
   return (
@@ -137,6 +153,29 @@ function SectionTitle({ text }: { text: string }) {
 
 /* ── Pantalla ───────────────────────────── */
 export default function CapacitacionesScreen() {
+  const [cursosDb, setCursosDb]       = useState<CursoDb[]>([]);
+  const [cargandoDb, setCargandoDb]   = useState(true);
+  const [inscribiendoId, setInscribiendoId] = useState<number | null>(null);
+
+  useEffect(() => {
+    getCapacitaciones()
+      .then((data) => setCursosDb(data ?? []))
+      .catch(() => {})
+      .finally(() => setCargandoDb(false));
+  }, []);
+
+  const handleInscribirse = async (curso: CursoDb) => {
+    setInscribiendoId(curso.id);
+    try {
+      await inscribirse(curso.id);
+      Alert.alert('¡Listo!', `Te inscribiste a "${curso.titulo}".`);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'No se pudo completar la inscripción.');
+    } finally {
+      setInscribiendoId(null);
+    }
+  };
+
   return (
     <View style={s.root}>
 
@@ -180,9 +219,57 @@ export default function CapacitacionesScreen() {
           </View>
         ))}
 
-        <TouchableOpacity style={s.verMasBtn} activeOpacity={0.8}>
-          <Text style={s.verMasText}>Ver más cursos</Text>
-        </TouchableOpacity>
+        {cargandoDb && (
+          <ActivityIndicator color={BUTTON} style={{ paddingVertical: 12 }} />
+        )}
+
+        {cursosDb.map((curso) => (
+          <View key={`db-${curso.id}`} style={s.cursoCard}>
+            {curso.imagen_url ? (
+              <Image source={{ uri: curso.imagen_url }} style={s.cursoImg} resizeMode="cover" />
+            ) : (
+              <Image source={require('../../assets/capa1.jpg')} style={s.cursoImg} resizeMode="cover" />
+            )}
+
+            <View style={s.cursoCuerpo}>
+              <View style={s.badgesRow}>
+                {!!curso.nivel && (
+                  <View style={s.badge}>
+                    <Text style={s.badgeText}>{curso.nivel}</Text>
+                  </View>
+                )}
+                {!!curso.duracion_horas && (
+                  <View style={s.badge}>
+                    <Text style={s.badgeText}>⏱ {curso.duracion_horas} hrs</Text>
+                  </View>
+                )}
+                {curso.estatus === 'Proxima' && (
+                  <View style={s.badge}>
+                    <Text style={s.badgeText}>Próximamente</Text>
+                  </View>
+                )}
+              </View>
+
+              <Text style={s.cursoNombre}>{curso.titulo}</Text>
+              {!!curso.descripcion && <Text style={s.cursoDesc}>{curso.descripcion}</Text>}
+              <Text style={s.cursoProveedor}>
+                {curso.organizacion ?? 'Guardian Zero'}{curso.modalidad ? ` · ${curso.modalidad}` : ''}
+              </Text>
+
+              <TouchableOpacity
+                style={s.verBtn}
+                activeOpacity={0.8}
+                disabled={inscribiendoId === curso.id}
+                onPress={() => handleInscribirse(curso)}
+              >
+                {inscribiendoId === curso.id
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={s.verBtnText}>Inscribirme</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
 
         {/* ── Próximas capacitaciones ── */}
         <SectionTitle text="Próximas Capacitaciones" />
@@ -277,6 +364,9 @@ const s = StyleSheet.create({
     height: 160,
   },
   cursoCuerpo: { padding: 14 },
+  badgesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  badge: { backgroundColor: BUTTON + '18', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+  badgeText: { fontSize: 11, fontWeight: '700', color: BUTTON },
   cursoNombre: { fontSize: 15, fontWeight: '700', color: TITULO, marginBottom: 6 },
   cursoDesc: { fontSize: 13, color: TEXT, lineHeight: 19, marginBottom: 8 },
   cursoProveedor: { fontSize: 11, color: BUTTON, fontWeight: '600', marginBottom: 10 },
@@ -287,16 +377,6 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   verBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-
-  verMasBtn: {
-    borderWidth: 1.5,
-    borderColor: BUTTON,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  verMasText: { color: BUTTON, fontSize: 14, fontWeight: '700' },
 
   /* Próximas capacitaciones */
   proximasCard: {

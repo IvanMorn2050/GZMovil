@@ -19,6 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../hooks/useAuth';
 import { crearReporte } from '../services/reporteService';
 import { TipoDesastre } from '../types';
+import { getDesastreImg } from '../constants/desastres';
 
 const TITULO  = '#0E3A44';
 const BUTTON  = '#1AA6A6';
@@ -154,6 +155,7 @@ export default function CreateReportScreen() {
           <View style={s.tiposGrid}>
             {TIPOS.map((t) => {
               const activo = tipo === t.valor;
+              const img = getDesastreImg(t.valor);
               return (
                 <TouchableOpacity
                   key={t.valor}
@@ -161,7 +163,10 @@ export default function CreateReportScreen() {
                   onPress={() => setTipo(t.valor)}
                   activeOpacity={0.8}
                 >
-                  <Text style={s.tipoEmoji}>{t.emoji}</Text>
+                  {img
+                    ? <Image source={img} style={s.tipoImg} resizeMode="contain" />
+                    : <Text style={s.tipoEmoji}>{t.emoji}</Text>
+                  }
                   <Text style={[s.tipoLabel, activo && s.tipoLabelActivo]}>{t.valor}</Text>
                 </TouchableOpacity>
               );
@@ -362,6 +367,7 @@ const s = StyleSheet.create({
   },
   tipoBtnActivo:   { borderColor: BUTTON, backgroundColor: BUTTON + '18' },
   tipoEmoji:       { fontSize: 22 },
+  tipoImg:         { width: 28, height: 28 },
   tipoLabel:       { fontSize: 11, fontWeight: '600', color: TEXT, textAlign: 'center' },
   tipoLabelActivo: { color: BUTTON },
 

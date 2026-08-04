@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../hooks/useAuth';
 import {
   getPerfilApi, updatePerfilApi, uploadFotoApi, postulacionApi,
@@ -75,7 +75,7 @@ const ESTADO_POST_COLOR: Record<string, string> = {
 
 export default function ProfileScreen() {
   const nav = useNavigation<any>();
-  const { usuario, logout, actualizarUsuario } = useAuth();
+  const { usuario, logout, actualizarUsuario, refrescarUsuario } = useAuth();
 
   // ── Estado del perfil ─────────────────────────────────────────────
   const [stats, setStats]         = useState({ total_reportes: 0, reportes_resueltos: 0, capacitaciones_completadas: 0 });
@@ -106,7 +106,7 @@ export default function ProfileScreen() {
   // ── Subiendo foto ─────────────────────────────────────────────────
   const [subiendoFoto, setSubiendoFoto] = useState(false);
 
-  useEffect(() => {
+  const cargar = useCallback(() => {
     getPerfilApi()
       .then((data) => {
         setStats({
@@ -119,7 +119,9 @@ export default function ProfileScreen() {
           setTelefono(data.telefono);
           setEditTel(data.telefono);
         }
-        if (data.postulacion) setPost(data.postulacion);
+        // Siempre se sincroniza (incluso a null): si la postulación ya no
+        // existe o cambió de estado, no debe quedarse pegada la anterior.
+        setPost(data.postulacion ?? null);
       })
       .catch(() => {})
       .finally(() => setCargando(false));
@@ -127,7 +129,17 @@ export default function ProfileScreen() {
     getCertificacionesApi()
       .then((data) => setCertificaciones(data.certificaciones ?? []))
       .catch(() => {});
-  }, []);
+
+    // Sincroniza el rol del usuario (ej. si un admin acaba de aprobar su
+    // postulación, el token sigue siendo válido pero el rol local queda
+    // desactualizado hasta refrescarlo).
+    refrescarUsuario();
+  }, [refrescarUsuario]);
+
+  // Se recarga cada vez que la pestaña Perfil vuelve a tener foco, no solo
+  // al montar — así una aprobación de admin se refleja sin tener que
+  // cerrar sesión.
+  useFocusEffect(cargar);
 
   const rolInfo      = ROL_INFO[usuario?.rol ?? 'ciudadano'];
   const esVoluntario = usuario?.rol === 'voluntario' || usuario?.rol === 'coordinador';
