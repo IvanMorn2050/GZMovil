@@ -156,6 +156,7 @@ export default function CapacitacionesScreen() {
   const [cursosDb, setCursosDb]       = useState<CursoDb[]>([]);
   const [cargandoDb, setCargandoDb]   = useState(true);
   const [inscribiendoId, setInscribiendoId] = useState<number | null>(null);
+  const [inscritos, setInscritos]     = useState<Set<number>>(new Set());
 
   useEffect(() => {
     getCapacitaciones()
@@ -168,9 +169,19 @@ export default function CapacitacionesScreen() {
     setInscribiendoId(curso.id);
     try {
       await inscribirse(curso.id);
-      Alert.alert('¡Listo!', `Te inscribiste a "${curso.titulo}".`);
+      setInscritos((prev) => new Set(prev).add(curso.id));
+      Alert.alert(
+        '¡Gracias por inscribirte!',
+        'Cuando el curso esté disponible podrás realizarlo.',
+      );
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'No se pudo completar la inscripción.');
+      // Si el backend dice que ya estaba inscrito (409), lo tratamos como
+      // éxito igual — el botón se queda en "Inscrito" en vez de mostrar error.
+      if (e.message?.toLowerCase().includes('ya estás inscrito')) {
+        setInscritos((prev) => new Set(prev).add(curso.id));
+      } else {
+        Alert.alert('Error', e.message || 'No se pudo completar la inscripción.');
+      }
     } finally {
       setInscribiendoId(null);
     }
@@ -257,14 +268,14 @@ export default function CapacitacionesScreen() {
               </Text>
 
               <TouchableOpacity
-                style={s.verBtn}
+                style={[s.verBtn, inscritos.has(curso.id) && s.verBtnInscrito]}
                 activeOpacity={0.8}
-                disabled={inscribiendoId === curso.id}
+                disabled={inscribiendoId === curso.id || inscritos.has(curso.id)}
                 onPress={() => handleInscribirse(curso)}
               >
                 {inscribiendoId === curso.id
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={s.verBtnText}>Inscribirme</Text>
+                  : <Text style={s.verBtnText}>{inscritos.has(curso.id) ? 'Inscrito ✓' : 'Inscribirme'}</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -377,6 +388,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   verBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  verBtnInscrito: { backgroundColor: '#27AE60' },
 
   /* Próximas capacitaciones */
   proximasCard: {
