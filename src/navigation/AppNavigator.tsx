@@ -54,7 +54,7 @@ function TabNavigator() {
         options={{
           tabBarIcon: ({ focused }) => (
             <Image
-              source={focused ? require('../../assets/home_activo.jpeg') : require('../../assets/home.png')}
+              source={focused ? require('../../assets/home_activo.png') : require('../../assets/home.png')}
               style={styles.tabIcon}
               resizeMode="contain"
             />
@@ -67,7 +67,7 @@ function TabNavigator() {
         options={{
           tabBarIcon: ({ focused }) => (
             <Image
-              source={focused ? require('../../assets/foro_activo.jpeg') : require('../../assets/foro.png')}
+              source={focused ? require('../../assets/foro_activo.png') : require('../../assets/foro.png')}
               style={styles.tabIcon}
               resizeMode="contain"
             />
@@ -102,8 +102,8 @@ function TabNavigator() {
             <Image
               source={
                 focused
-                  ? require('../../assets/capacitaciones_activo.jpeg')
-                  : require('../../assets/capacitaciones.jpeg')
+                  ? require('../../assets/capacitaciones_activo.png')
+                  : require('../../assets/capacitaciones.png')
               }
               style={styles.tabIcon}
               resizeMode="contain"
@@ -117,7 +117,7 @@ function TabNavigator() {
         options={{
           tabBarIcon: ({ focused }) => (
             <Image
-              source={focused ? require('../../assets/perfil_activo.jpeg') : require('../../assets/perfil.jpeg')}
+              source={focused ? require('../../assets/perfil_activo.png') : require('../../assets/perfil.png')}
               style={styles.tabIcon}
               resizeMode="contain"
             />
