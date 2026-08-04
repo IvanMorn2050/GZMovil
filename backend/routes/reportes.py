@@ -162,6 +162,7 @@ def home_stats():
             cur.execute('''
                 SELECT r.latitud, r.longitud,
                        COALESCE(td.emoji, '📍') AS emoji,
+                       COALESCE(td.nombre, 'General') AS tipo_desastre,
                        r.estatus
                 FROM reporte r
                 LEFT JOIN tipo_desastre td ON td.id = r.id_tipo_desastre

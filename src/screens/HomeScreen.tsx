@@ -42,7 +42,7 @@ interface HomeStats {
   albergues_activos:   number;
   reportes_por_tipo:   { nombre: string; emoji: string; total: number; pct: number }[];
   alertas_recientes:   { titulo: string; prioridad: string; direccion_texto: string | null; creado_en: string; distancia_km: number | null }[];
-  marcadores:          { latitud: number; longitud: number; emoji: string }[];
+  marcadores:          { latitud: number; longitud: number; emoji: string; tipo_desastre: string }[];
 }
 
 const DEFAULT_STATS: HomeStats = {
@@ -159,16 +159,22 @@ export default function HomeScreen() {
                 pitchEnabled={false}
                 rotateEnabled={false}
               >
-                {stats.marcadores.map((m, i) => (
-                  <Marker
-                    key={i}
-                    coordinate={{ latitude: m.latitud, longitude: m.longitud }}
-                  >
-                    <View style={s.markerBubble}>
-                      <Text style={{ fontSize: 16 }}>{m.emoji}</Text>
-                    </View>
-                  </Marker>
-                ))}
+                {stats.marcadores.map((m, i) => {
+                  const img = getDesastreImg(m.tipo_desastre);
+                  return (
+                    <Marker
+                      key={i}
+                      coordinate={{ latitude: m.latitud, longitude: m.longitud }}
+                    >
+                      <View style={s.markerBubble}>
+                        {img
+                          ? <Image source={img} style={s.markerImg} resizeMode="contain" />
+                          : <Text style={{ fontSize: 16 }}>{m.emoji}</Text>
+                        }
+                      </View>
+                    </Marker>
+                  );
+                })}
               </MapView>
             </View>
             <View style={s.simbologiaCol}>
@@ -330,6 +336,7 @@ const s = StyleSheet.create({
     shadowRadius: 2,
     elevation: 3,
   },
+  markerImg: { width: 18, height: 18 },
   simbologiaCol:    { width: 110, justifyContent: 'flex-start' },
   simbologiaTitulo: { fontSize: 10, fontWeight: '700', color: TITULO, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   simbologiaFila:   { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
