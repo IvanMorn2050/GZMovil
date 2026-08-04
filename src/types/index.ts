@@ -1,4 +1,4 @@
-export type RolUsuario = 'ciudadano' | 'voluntario' | 'coordinador';
+export type RolUsuario = 'ciudadano' | 'voluntario' | 'coordinador' | 'administrador';
 
 export interface Usuario {
   id: string;
@@ -51,6 +51,7 @@ export type RootStackParamList = {
   ForoDetail: { id: number; titulo: string };
   MisReportes: undefined;
   RegistroOcurrencias: undefined;
+  AdminPostulaciones: undefined;
 };
 
 export type TabParamList = {

@@ -85,8 +85,9 @@ export function useAuthContext() {
 }
 
 function mapRol(apiRol: string): RolUsuario {
-  if (apiRol === 'Voluntario')  return 'voluntario';
-  if (apiRol === 'Especialista' || apiRol === 'Administrador') return 'coordinador';
+  if (apiRol === 'Voluntario')    return 'voluntario';
+  if (apiRol === 'Especialista')  return 'coordinador';
+  if (apiRol === 'Administrador') return 'administrador';
   return 'ciudadano';
 }
 

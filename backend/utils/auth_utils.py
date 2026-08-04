@@ -33,3 +33,12 @@ def jwt_requerido(f):
             return jsonify({'error': 'Token inválido'}), 401
         return f(*args, **kwargs)
     return decorated
+
+
+def admin_requerido(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if getattr(request, 'user_rol', None) != 'Administrador':
+            return jsonify({'error': 'Acceso solo para administradores'}), 403
+        return f(*args, **kwargs)
+    return decorated

@@ -24,19 +24,23 @@ def ping():
 # ── Registro ──────────────────────────────────────────────────────────
 @auth_bp.route('/registro', methods=['POST'])
 def registro():
-    d          = request.get_json(silent=True) or {}
-    nombre     = (d.get('nombre') or '').strip()
-    email      = (d.get('email') or '').strip().lower()
-    contrasena = d.get('contrasena') or ''
-    rol        = d.get('rol', 'Civil')
-    telefono   = (d.get('telefono') or '').strip() or None
+    d              = request.get_json(silent=True) or {}
+    nombre         = (d.get('nombre') or '').strip()
+    email          = (d.get('email') or '').strip().lower()
+    contrasena     = d.get('contrasena') or ''
+    rol_solicitado = d.get('rol', 'Civil')
+    telefono       = (d.get('telefono') or '').strip() or None
 
     if not nombre or not email or not contrasena:
         return jsonify({'error': 'Nombre, email y contraseña son requeridos'}), 400
     if len(contrasena) < 4:
         return jsonify({'error': 'La contraseña debe tener al menos 4 caracteres'}), 400
-    if rol not in ('Civil', 'Voluntario', 'Especialista', 'Administrador'):
-        rol = 'Civil'
+    # Nadie se auto-asigna Voluntario/Especialista/Administrador al registrarse:
+    # Voluntario y Especialista quedan como Civil + una postulación pendiente de
+    # revisión por un administrador; Administrador nunca es auto-asignable.
+    if rol_solicitado not in ('Civil', 'Voluntario', 'Especialista'):
+        rol_solicitado = 'Civil'
+    requiere_postulacion = rol_solicitado != 'Civil'
 
     hashed = bcrypt.hashpw(contrasena.encode(), bcrypt.gensalt()).decode()
 
@@ -52,8 +56,16 @@ def registro():
                 '''INSERT INTO usuario
                    (nombre, email, contrasena, rol, telefono, estado, email_verificado)
                    VALUES (%s, %s, %s, %s, %s, %s, %s)''',
-                (nombre, email, hashed, rol, telefono, 'Pendiente_Verificacion', 0),
+                (nombre, email, hashed, 'Civil', telefono, 'Pendiente_Verificacion', 0),
             )
+            nuevo_id = cur.lastrowid
+
+            if requiere_postulacion:
+                cur.execute(
+                    '''INSERT INTO postulacion (id_usuario, rol_solicitado, motivo, estado)
+                       VALUES (%s, %s, %s, 'Pendiente')''',
+                    (nuevo_id, rol_solicitado, 'Solicitud generada automáticamente al registrarse.'),
+                )
             db.commit()
     except Exception as e:
         db.rollback()

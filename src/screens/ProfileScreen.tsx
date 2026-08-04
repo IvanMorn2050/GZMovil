@@ -30,12 +30,13 @@ const DIVIDER = '#D9D9D9';
 const TEXT    = '#6B7C85';
 
 const ROL_INFO: Record<string, { label: string; emoji: string; color: string }> = {
-  ciudadano:   { label: 'Ciudadano',   emoji: '🏘️', color: '#3498DB' },
-  voluntario:  { label: 'Voluntario',  emoji: '🤝', color: '#27AE60' },
-  coordinador: { label: 'Coordinador', emoji: '⭐', color: '#F39C12' },
+  ciudadano:     { label: 'Ciudadano',     emoji: '🏘️', color: '#3498DB' },
+  voluntario:    { label: 'Voluntario',    emoji: '🤝', color: '#27AE60' },
+  coordinador:   { label: 'Coordinador',   emoji: '⭐', color: '#F39C12' },
+  administrador: { label: 'Administrador', emoji: '🛡️', color: '#8E44AD' },
 };
 
-interface PermisoItem { texto: string; screen?: 'MisReportes' | 'RegistroOcurrencias' }
+interface PermisoItem { texto: string; screen?: 'MisReportes' | 'RegistroOcurrencias' | 'AdminPostulaciones' }
 
 const PERMISOS: Record<string, PermisoItem[]> = {
   voluntario:  [
@@ -51,6 +52,10 @@ const PERMISOS: Record<string, PermisoItem[]> = {
   ciudadano:   [
     { texto: 'Reportar desastres naturales en tu zona' },
     { texto: 'Ver el estado de tus reportes enviados', screen: 'MisReportes' },
+    { texto: 'Consultar el registro de ocurrencias', screen: 'RegistroOcurrencias' },
+  ],
+  administrador: [
+    { texto: 'Revisar y aprobar postulaciones de Voluntario/Especialista', screen: 'AdminPostulaciones' },
     { texto: 'Consultar el registro de ocurrencias', screen: 'RegistroOcurrencias' },
   ],
 };
@@ -337,32 +342,39 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* ── Postulación (solo ciudadanos) ── */}
-        {usuario?.rol === 'ciudadano' && (
+        {/* ── Postulación (ciudadanos → Voluntario; voluntarios → Especialista) ── */}
+        {(usuario?.rol === 'ciudadano' || usuario?.rol === 'voluntario') && (
           <View style={s.card}>
             <View style={s.sectionRow}>
               <View style={s.sectionAccent} />
-              <Text style={s.sectionText}>🤝  Únete como Voluntario</Text>
+              <Text style={s.sectionText}>
+                {usuario?.rol === 'voluntario' ? '⭐  Postúlate como Especialista' : '🤝  Únete como Voluntario'}
+              </Text>
             </View>
-            {postulacion ? (
+            {postulacion?.estado === 'Pendiente' ? (
               <View style={[s.postBadge, { backgroundColor: (ESTADO_POST_COLOR[postulacion.estado] ?? '#6B7C85') + '18' }]}>
                 <Text style={[s.postEstado, { color: ESTADO_POST_COLOR[postulacion.estado] ?? '#6B7C85' }]}>
-                  {postulacion.estado === 'Pendiente' && '⏳ '}
-                  {postulacion.estado === 'Aprobada'  && '✅ '}
-                  {postulacion.estado === 'Rechazada' && '❌ '}
-                  Postulación como {postulacion.rol_solicitado}: {postulacion.estado}
+                  ⏳ Postulación como {postulacion.rol_solicitado}: {postulacion.estado}
                 </Text>
                 <Text style={s.postMotivo}>"{postulacion.motivo}"</Text>
-                {postulacion.estado === 'Pendiente' && (
-                  <Text style={s.postInfo}>Tu solicitud está siendo revisada por un administrador.</Text>
-                )}
+                <Text style={s.postInfo}>Tu solicitud está siendo revisada por un administrador.</Text>
+                <Text style={s.postInfo}>Mientras tanto, conservas los permisos de tu rol actual.</Text>
               </View>
             ) : (
               <>
                 <Text style={s.postDesc}>
-                  Forma parte del equipo de respuesta a emergencias. Ayuda a tu comunidad como voluntario o especialista.
+                  {usuario?.rol === 'voluntario'
+                    ? 'Si ya cuentas con experiencia y certificaciones, postúlate para convertirte en especialista y coordinar equipos de respuesta.'
+                    : 'Forma parte del equipo de respuesta a emergencias. Ayuda a tu comunidad como voluntario.'}
                 </Text>
-                <TouchableOpacity style={s.postBtn} onPress={() => setPostVisible(true)} activeOpacity={0.85}>
+                <TouchableOpacity
+                  style={s.postBtn}
+                  onPress={() => {
+                    setPostRol(usuario?.rol === 'voluntario' ? 'Especialista' : 'Voluntario');
+                    setPostVisible(true);
+                  }}
+                  activeOpacity={0.85}
+                >
                   <Text style={s.postBtnText}>Enviar Postulación</Text>
                 </TouchableOpacity>
               </>
@@ -492,14 +504,18 @@ export default function ProfileScreen() {
       <Modal visible={postVisible} animationType="slide" transparent onRequestClose={() => setPostVisible(false)}>
         <KeyboardAvoidingView style={s.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={s.modalBox}>
-            <Text style={s.modalTitle}>Postulación como Voluntario</Text>
+            <Text style={s.modalTitle}>
+              {usuario?.rol === 'voluntario' ? 'Postulación como Especialista' : 'Postulación como Voluntario'}
+            </Text>
             <Text style={s.postModalDesc}>
-              Selecciona el rol al que deseas aplicar y cuéntanos por qué quieres ser parte del equipo.
+              {usuario?.rol === 'voluntario'
+                ? 'Cuéntanos por qué quieres ser especialista.'
+                : 'Selecciona el rol al que deseas aplicar y cuéntanos por qué quieres ser parte del equipo.'}
             </Text>
 
             <Text style={s.inputLabel}>Rol solicitado</Text>
             <View style={s.rolSelector}>
-              {(['Voluntario', 'Especialista'] as const).map((r) => (
+              {(usuario?.rol === 'voluntario' ? ['Especialista'] as const : ['Voluntario', 'Especialista'] as const).map((r) => (
                 <TouchableOpacity
                   key={r}
                   style={[s.rolOption, postRol === r && s.rolOptionActive]}

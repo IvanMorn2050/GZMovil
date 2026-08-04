@@ -2,9 +2,10 @@ import { apiFetch, apiFetchMultipart } from './api';
 import { RolUsuario } from '../types';
 
 const ROL_MAP: Record<RolUsuario, string> = {
-  ciudadano:   'Civil',
-  voluntario:  'Voluntario',
-  coordinador: 'Especialista',
+  ciudadano:     'Civil',
+  voluntario:    'Voluntario',
+  coordinador:   'Especialista',
+  administrador: 'Administrador',
 };
 
 export function loginApi(email: string, contrasena: string) {
@@ -142,4 +143,37 @@ export async function uploadCertificacionApi(uri: string, nombreOriginal: string
 
 export function deleteCertificacionApi(id: number) {
   return apiFetch<{ message: string }>(`/api/perfil/certificaciones/${id}`, { method: 'DELETE', auth: true });
+}
+
+// ── Administración ────────────────────────────────────────────────────
+
+export interface PostulacionPendiente {
+  id: number;
+  rol_solicitado: string;
+  estado: string;
+  motivo: string;
+  creado_en: string;
+  id_usuario: number;
+  nombre: string;
+  email: string;
+  telefono: string | null;
+  foto_url: string | null;
+  total_certificaciones: number;
+}
+
+export function getPostulacionesPendientesApi() {
+  return apiFetch<{ postulaciones: PostulacionPendiente[] }>('/api/admin/postulaciones', { auth: true });
+}
+
+export function getCertificacionesPostulanteApi(postulacionId: number) {
+  return apiFetch<{ certificaciones: Certificacion[] }>(
+    `/api/admin/postulaciones/${postulacionId}/certificaciones`, { auth: true },
+  );
+}
+
+export function responderPostulacionApi(postulacionId: number, respuesta: 'aprobar' | 'rechazar') {
+  return apiFetch<{ message: string }>(
+    `/api/admin/postulaciones/${postulacionId}/responder`,
+    { method: 'POST', body: { respuesta }, auth: true },
+  );
 }

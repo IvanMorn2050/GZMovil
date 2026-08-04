@@ -10,6 +10,7 @@ from routes.perfil import perfil_bp
 from routes.alertas import alertas_bp
 from routes.media import media_bp
 from routes.voluntario import voluntario_bp
+from routes.admin import admin_bp
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 
@@ -30,6 +31,7 @@ def create_app():
     app.register_blueprint(alertas_bp,        url_prefix='/api/alertas')
     app.register_blueprint(media_bp,          url_prefix='/api/media')
     app.register_blueprint(voluntario_bp,     url_prefix='/api/voluntario')
+    app.register_blueprint(admin_bp,          url_prefix='/api/admin')
 
     @app.route('/uploads/<path:filename>')
     def serve_upload(filename):
