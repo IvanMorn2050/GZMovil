@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  # Backend de GuardianZero desplegado en Render — Prometheus lo "raspa"
+  # directamente por HTTPS, no requiere ningun agente extra en Render.
+  - job_name: 'guardianzero-backend'
+    scheme: https
+    metrics_path: /metrics
+    scrape_timeout: 20s
+    static_configs:
+      - targets: ['gzmovil.onrender.com']

@@ -7,3 +7,4 @@ python-dotenv==1.0.1
 itsdangerous==2.2.0
 gunicorn==22.0.0
 requests==2.32.3
+prometheus-flask-exporter==0.23.1

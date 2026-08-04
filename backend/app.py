@@ -1,5 +1,6 @@
 import os
 from flask import Flask, send_from_directory
+from prometheus_flask_exporter import PrometheusMetrics
 from config import Config
 from extensions import cors
 from routes.auth import auth_bp
@@ -20,6 +21,10 @@ def create_app():
     app.config.from_object(Config)
 
     cors.init_app(app, resources={r'/api/*': {'origins': '*'}})
+
+    # Expone /metrics en formato Prometheus (requests por endpoint, latencia,
+    # codigos de estado, mas metricas de proceso como CPU/memoria).
+    PrometheusMetrics(app)
 
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
