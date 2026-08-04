@@ -29,10 +29,10 @@ const HEADER  = '#B6C3C9';
 const DIVIDER = '#D9D9D9';
 const TEXT    = '#6B7C85';
 
-const NIVEL_COLOR: Record<string, string> = {
-  Evacuacion:  '#E74C3C',
-  Precaucion:  '#E67E22',
-  Informativa: '#3498DB',
+const PRIORIDAD_COLOR: Record<string, string> = {
+  Alta:  '#E74C3C',
+  Media: '#E67E22',
+  Baja:  '#3498DB',
 };
 
 interface HomeStats {
@@ -41,7 +41,7 @@ interface HomeStats {
   voluntarios_activos: number;
   albergues_activos:   number;
   reportes_por_tipo:   { nombre: string; emoji: string; total: number; pct: number }[];
-  alertas_recientes:   { titulo: string; nivel: string; zona: string; creado_en: string }[];
+  alertas_recientes:   { titulo: string; prioridad: string; direccion_texto: string | null; creado_en: string; distancia_km: number | null }[];
   marcadores:          { latitud: number; longitud: number; emoji: string }[];
 }
 
@@ -87,11 +87,12 @@ export default function HomeScreen() {
   const [stats,     setStats]     = useState<HomeStats>(DEFAULT_STATS);
   const [cargando,  setCargando]  = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const cargar = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setCargando(true);
     try {
-      const data = await getHomeStatsApi();
+      const data = await getHomeStatsApi(userCoords ?? undefined);
       setStats(data);
     } catch {
       // mantiene los defaults si falla
@@ -99,8 +100,10 @@ export default function HomeScreen() {
       setCargando(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [userCoords]);
 
+  // Se vuelve a pedir en cuanto userCoords pasa de null a la ubicación real,
+  // así "últimas alertas" queda ordenado por cercanía sin esperar un refresh manual.
   useEffect(() => { cargar(); }, [cargar]);
 
   // Centra el mapa en la ubicación aproximada del usuario al abrir la pantalla
@@ -110,6 +113,7 @@ export default function HomeScreen() {
       if (status !== 'granted') return;
       try {
         const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         mapRef.current?.animateToRegion({
           latitude:      pos.coords.latitude,
           longitude:     pos.coords.longitude,
@@ -260,8 +264,11 @@ export default function HomeScreen() {
           ) : (
             stats.alertas_recientes.map((a, i) => (
               <View key={i} style={s.alertaFila}>
-                <View style={[s.alertaDot2, { backgroundColor: NIVEL_COLOR[a.nivel] ?? '#6B7C85' }]} />
-                <Text style={s.alertaLabel}>{a.titulo} · {a.zona}</Text>
+                <View style={[s.alertaDot2, { backgroundColor: PRIORIDAD_COLOR[a.prioridad] ?? '#6B7C85' }]} />
+                <Text style={s.alertaLabel} numberOfLines={1}>
+                  {a.titulo}{a.direccion_texto ? ` · ${a.direccion_texto}` : ''}
+                  {a.distancia_km != null ? ` · ${a.distancia_km} km` : ''}
+                </Text>
                 <Text style={s.alertaTiempo}>{tiempoRelativo(a.creado_en)}</Text>
               </View>
             ))

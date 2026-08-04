@@ -7,6 +7,14 @@ from utils.auth_utils import jwt_requerido
 reportes_bp = Blueprint('reportes', __name__)
 
 
+def _haversine(lat1, lng1, lat2, lng2):
+    R = 6371.0
+    f1, f2 = math.radians(lat1), math.radians(lat2)
+    a = math.sin(math.radians(lat2 - lat1) / 2) ** 2 + \
+        math.cos(f1) * math.cos(f2) * math.sin(math.radians(lng2 - lng1) / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
 @reportes_bp.route('', methods=['GET'])
 @jwt_requerido
 def listar():
@@ -80,6 +88,9 @@ def mis_reportes():
 @reportes_bp.route('/home', methods=['GET'])
 @jwt_requerido
 def home_stats():
+    lat = request.args.get('lat', type=float)
+    lng = request.args.get('lng', type=float)
+
     db = get_db()
     try:
         with db.cursor() as cur:
@@ -119,20 +130,33 @@ def home_stats():
             for t in tipos:
                 t['pct'] = round(t['total'] / max_t * 100)
 
-            # Alertas recientes
+            # Últimas alertas: reportes recientes cercanos al usuario
+            # (se usa reporte.latitud/longitud en vez de la tabla alerta,
+            # que no siempre tiene datos poblados).
             cur.execute('''
-                SELECT a.titulo, a.nivel, a.creado_en,
-                       COALESCE(z.nombre, 'México') AS zona
-                FROM alerta a
-                LEFT JOIN zona_afectada z ON z.id = a.id_zona_afectada
-                WHERE a.activa = 1
-                ORDER BY a.creado_en DESC
-                LIMIT 5
+                SELECT r.titulo, r.prioridad, r.creado_en, r.direccion_texto,
+                       r.latitud, r.longitud
+                FROM reporte r
+                WHERE r.estatus IN ('Pendiente','En_Proceso')
+                ORDER BY r.creado_en DESC
+                LIMIT 30
             ''')
-            alertas = cur.fetchall()
-            for a in alertas:
-                if a.get('creado_en'):
-                    a['creado_en'] = a['creado_en'].isoformat()
+            candidatos = cur.fetchall()
+            for c in candidatos:
+                if c.get('creado_en'):
+                    c['creado_en'] = c['creado_en'].isoformat()
+                if lat is not None and lng is not None and c.get('latitud') and c.get('longitud'):
+                    c['distancia_km'] = round(
+                        _haversine(lat, lng, float(c['latitud']), float(c['longitud'])), 1,
+                    )
+                else:
+                    c['distancia_km'] = None
+                del c['latitud']
+                del c['longitud']
+
+            if lat is not None and lng is not None:
+                candidatos.sort(key=lambda x: (x['distancia_km'] is None, x['distancia_km'] or 0))
+            alertas = candidatos[:5]
 
             # Marcadores para el mapa (sólo reportes con coordenadas)
             cur.execute('''
@@ -177,13 +201,6 @@ def cercanos():
     if lat is None or lng is None:
         return jsonify({'error': 'Se requieren lat y lng'}), 400
 
-    def _hav(lat1, lng1, lat2, lng2):
-        R = 6371.0
-        f1, f2 = math.radians(lat1), math.radians(lat2)
-        a = math.sin(math.radians(lat2 - lat1) / 2) ** 2 + \
-            math.cos(f1) * math.cos(f2) * math.sin(math.radians(lng2 - lng1) / 2) ** 2
-        return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
     db = get_db()
     try:
         with db.cursor() as cur:
@@ -222,7 +239,7 @@ def cercanos():
         for r in rows:
             r_lat = float(r['latitud'])
             r_lng = float(r['longitud'])
-            dist  = _hav(lat, lng, r_lat, r_lng)
+            dist  = _haversine(lat, lng, r_lat, r_lng)
             if dist <= radio:
                 if r.get('creado_en'):
                     r['creado_en'] = r['creado_en'].isoformat()

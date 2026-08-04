@@ -49,8 +49,9 @@ export function postulacionApi(rol_solicitado: string, motivo: string) {
   });
 }
 
-export function getHomeStatsApi() {
-  return apiFetch<any>('/api/reportes/home', { auth: true });
+export function getHomeStatsApi(coords?: { lat: number; lng: number }) {
+  const qs = coords ? `?lat=${coords.lat}&lng=${coords.lng}` : '';
+  return apiFetch<any>(`/api/reportes/home${qs}`, { auth: true });
 }
 
 export async function uploadMediaApi(uri: string): Promise<{ url: string; filename: string }> {
